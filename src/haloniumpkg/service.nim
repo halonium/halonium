@@ -1,4 +1,4 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, tables
 
 import utils, exceptions, commands
 
@@ -122,9 +122,19 @@ proc commandLineArgs*(service: Service): seq[string] =
   else:
     result = service.args
 
+proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple =
+  case service.kind
+  of Firefox:
+    FirefoxCommandTable[command]
+  of Chrome, Chromium:
+    ChromiumCommandTable[command]
+  of Safari:
+    SafariCommandTable[command]
+  else:
+    BaseCommandTable[command]
+
 proc url*(service: Service): string =
-  let hostPort = joinHostPort(service.host, service.port)
-  fmt"http://{hostPort}"
+  fmt"http://{joinHostPort(service.host, service.port)}"
 
 proc isConnectable(service: Service): bool =
   result = utils.isConnectable(service.port)
