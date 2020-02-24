@@ -1,4 +1,4 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, tables
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, tables, json
 
 import utils, exceptions, commands
 
@@ -62,6 +62,44 @@ proc getDriverExe(kind: ServiceKind): string =
     "operadriver"
   of Safari:
     "/usr/bin/safaridriver"
+
+proc desiredCapabilities*(kind: ServiceKind): JsonNode =
+  case kind
+  of Firefox:
+    %*{
+      "browserName": "firefox",
+      "acceptInsecureCerts": true
+    }
+  of Chrome, Chromium:
+    %*{
+      "browserName": "chrome",
+      "version": "",
+      "platform": "ANY"
+    }
+  of Edge:
+    %*{
+      "browserName": "MicrosoftEdge",
+      "version": "",
+      "platform": "ANY"
+    }
+  of InternetExplorer:
+    %*{
+      "browserName": "internet explorer",
+      "version": "",
+      "platform": "WINDOWS"
+    }
+  of Opera:
+    %*{
+      "browserName": "opera",
+      "version": "",
+      "platform": "ANY"
+    }
+  of Safari:
+    %*{
+      "browserName": "safari",
+      "version": "",
+      "platform": "MAC"
+    }
 
 proc getStartupMessage(kind: ServiceKind): string =
   case kind

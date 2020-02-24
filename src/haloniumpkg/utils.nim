@@ -1,4 +1,4 @@
-import net, strformat, strutils
+import net, strformat, strutils, json
 import nativesockets
 
 import exceptions
@@ -48,3 +48,9 @@ proc joinHostPort*(host: string, port: int): string =
   if ':' in host and not host.startsWith('['):
     return fmt"[{host}]:{port}"
   return fmt"{host}:{port}"
+
+proc toJson*[T, U](vals: openArray[(T, U)]): JsonNode =
+  ## Generic constructor for JSON data. Creates a new ``JObject JsonNode``.
+  result = newJObject()
+  for val in vals:
+    result[$val[0]] = %val[1]

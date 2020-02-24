@@ -3,8 +3,8 @@ import json
 type
   WebDriverException* = object of Exception
     ## Base webdriver exception
-    screen: JsonNode
-    stacktrace: string
+    screen*: JsonNode
+    stacktrace*: string
 
   ProtocolException* = object of WebDriverException
 
@@ -141,3 +141,15 @@ type
 
   UnknownMethodException* = object of WebDriverException
     ## The requested command matched a known URL but did not match any methods for that URL.
+
+template newWebDriverException*(
+  message: string,
+  exceptn: typedesc = WebDriverException,
+  parentException: ref Exception = nil,
+  scrn: JsonNode = nil,
+  stcktrace = ""
+): untyped =
+  var res = newException(exceptn, message, parentException)
+  res.screen = scrn
+  res.stacktrace = stcktrace
+  res
