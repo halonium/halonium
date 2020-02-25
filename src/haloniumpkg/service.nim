@@ -53,6 +53,15 @@ proc getDriverExe(kind: BrowserKind): string =
     "operadriver"
   of Safari:
     "/usr/bin/safaridriver"
+  of PhantomJs:
+    "phantomjs"
+  of WebkitGTK:
+    "WebKitWebDriver"
+  of Android:
+    raise newWebdriverException(
+      NoSuchServiceExecutableException,
+      "There is no service executable for Android. Please use a remote webdriver instead."
+    )
 
 proc desiredCapabilities*(kind: BrowserKind): JsonNode =
   case kind
@@ -90,6 +99,25 @@ proc desiredCapabilities*(kind: BrowserKind): JsonNode =
       "browserName": "safari",
       "version": "",
       "platform": "MAC"
+    }
+  of PhantomJs:
+    %*{
+      "browserName": "phantomjs",
+      "version": "",
+      "platform": "ANY",
+      "javascriptEnabled": true
+    }
+  of Android:
+    %*{
+      "browserName": "android",
+      "version": "",
+      "platform": "ANDROID"
+    }
+  of WebkitGTK:
+    %*{
+      "browserName": "MiniBrowser",
+      "version": "",
+      "platform": "ANY"
     }
 
 proc getStartupMessage(kind: BrowserKind): string =
@@ -148,6 +176,10 @@ proc commandLineArgs*(service: Service): seq[string] =
       result.add(@["--log-level", service.logLevel])
     if service.host.len > 0:
       result.add(@["--host", service.host])
+  of WebkitGTK:
+    result = @["-p", $service.port].concat(service.args)
+  of PhantomJs:
+    result = @["--webdriver", $service.port].concat(service.args)
   else:
     result = service.args
 
@@ -166,7 +198,11 @@ proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple 
   return getCommandTuple(service.kind, command)
 
 proc url*(service: Service): string =
-  fmt"http://{joinHostPort(service.host, service.port)}"
+  case service.kind
+  of PhantomJs, Android:
+    fmt"http://{joinHostPort(service.host, service.port)}/wd/hub"
+  else:
+    fmt"http://{joinHostPort(service.host, service.port)}"
 
 proc isConnectable(service: Service): bool =
   result = utils.isConnectable(service.port)
@@ -240,14 +276,14 @@ proc start*(service: Service) =
     )
   except OSError as exc:
     if exc.errorCode == ENOENT:
-      raise newException(WebDriverException, fmt"'{service.path}' needs to be in PATH. {service.startupMessage}")
+      raise newWebdriverException(fmt"'{service.path}' needs to be in PATH. {service.startupMessage}")
     elif exc.errorCode == EACCES:
       raise newException(
         WebDriverException,
         fmt"'{service.path}' may have the wrong permissions. Please set binary as executable and readable by the current user."
       )
   except Exception as exc:
-    raise newException(WebDriverException, fmt"'{service.path}' needs to be in PATH. {service.startupMessage}. Error: {exc.msg}")
+    raise newWebDriverException(fmt"'{service.path}' needs to be in PATH. {service.startupMessage}. Error: {exc.msg}")
 
   var count = 0
   while true:
@@ -258,5 +294,5 @@ proc start*(service: Service) =
     count += 1
     sleep(1000)
     if count >= 30:
-      raise newException(WebDriverException, fmt"Cannot connect to service {service.path}. \l{service.process.outputStream.readAll}")
+      raise newWebDriverException(fmt"Cannot connect to service {service.path}. \l{service.process.outputStream.readAll}")
   spawn service.watchOutput()

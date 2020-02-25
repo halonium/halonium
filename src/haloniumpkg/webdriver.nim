@@ -9,12 +9,13 @@ type
   WebDriver* = ref object
     url*: Uri
     client*: HttpClient
-    service*: Service
+    browser*: BrowserKind
     keepAlive*: bool
     w3c*: bool
 
   Session* = object
     driver: WebDriver
+    service: Service
     id*: string
 
   Element* = object
@@ -77,7 +78,7 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
 
   let
     response = self.client.request(url, httpMethod, bodyString, headers)
-    body = response.body
+    respData = response.body
   var
     status = response.code.int
 
@@ -86,7 +87,7 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
   if status > 399 and status <= Http500.int:
     return %*{
       "status": status,
-      "value": body
+      "value": respData
     }
 
   let contentTypes = response.headers.getOrDefault("Content-Type").split(';')
@@ -98,22 +99,26 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
       break
 
   if isPng:
-    return %*{"status": ErrorCode.Success.int, "value": body}
+    return %*{"status": ErrorCode.Success.int, "value": respData}
   else:
     try:
-      result = parseJson(body)
-    except:
+      result = parseJson(respData.strip())
+    except JsonParsingError:
       if status > 199 and status < Http300.int:
         status = ErrorCode.Success.int
       else:
         status = ErrorCode.UnknownError.int
-      return %*{"status": status, "value": body.strip()}
+      return %*{"status": status, "value": respData.strip()}
+
+    if not result.hasKey("value"):
+      result["value"] = nil
+
 
 # TODO: Separate this out into a "RemoteWebdriver" module so that it can be reused
 proc execute(self: WebDriver, command: Command, params: openArray[(string, string)]): JsonNode =
   var commandInfo: CommandEndpointTuple
   try:
-    commandInfo = self.service.getCommandTuple(command)
+    commandInfo = self.browser.getCommandTuple(command)
   except:
     raise newWebDriverException(fmt"Command '{$command}' could not be found.")
 
@@ -131,10 +136,21 @@ proc execute(self: WebDriver, command: Command, params: openArray[(string, strin
     data = newParams.toJson
     url = fmt"{self.url}{filledUrl}"
 
-  result = self.request(commandInfo[0], url, data)
+  let response = self.request(commandInfo[0], url, data)
+  checkResponse(response)
 
-proc newWebDriver*(kind: BrowserKind, url: string = "http://127.0.0.1:4444"): WebDriver =
-  result = WebDriver(url: parseUri(url))
+proc getDriverUri(kind: BrowserKind, url: string): Uri =
+  case kind
+  of Android, PhantomJs:
+    if "wd/hub" notin url:
+      parseUri(url) / "wd" / "hub"
+    else:
+      parseUri(url)
+  else:
+    parseUri(url)
+
+proc newRemoteWebDriver*(kind: BrowserKind, url: string = "http://localhost:4444", keepAlive = true): WebDriver =
+  result = WebDriver(url: getDriverUri(kind, url), browser: kind, client: newHttpClient(), keepAlive: keepAlive)
 
 proc createSession*(self: WebDriver): Session =
   discard

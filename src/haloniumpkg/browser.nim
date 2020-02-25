@@ -7,3 +7,6 @@ type
     InternetExplorer
     Opera
     Safari
+    PhantomJs
+    Android
+    WebkitGTK

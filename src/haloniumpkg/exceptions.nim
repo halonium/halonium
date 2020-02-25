@@ -4,7 +4,10 @@ type
   WebDriverException* = object of Exception
     ## Base webdriver exception
     screen*: JsonNode
-    stacktrace*: string
+    stacktrace*: seq[string]
+    alertText*: string
+
+  NoSuchServiceExecutableException* = object of WebDriverException
 
   ProtocolException* = object of WebDriverException
 
@@ -50,11 +53,12 @@ type
     ## Thrown when a command could not be completed because the element is in an invalid state.
     ## This can be caused by attempting to clear an element that isn't both editable and resettable.
 
+  InvalidElementCoordinatesException* = object of WebDriverException
+
   UnexpectedAlertPresentException* = object of WebDriverException
     ## Thrown when an unexpected alert has appeared.
     ## Usually raised when  an unexpected modal is blocking the webdriver from executing
     ## commands.
-    alertText: string
 
   NoAlertPresentException* = object of WebDriverException
     ## Thrown when switching to no presented alert.
@@ -139,17 +143,27 @@ type
   SessionNotCreatedException* = object of WebDriverException
     ## A new session could not be created.
 
+  MethodNotAllowedException* = object of WebDriverException
+
   UnknownMethodException* = object of WebDriverException
     ## The requested command matched a known URL but did not match any methods for that URL.
 
 template newWebDriverException*(
-  message: string,
   exceptn: typedesc = WebDriverException,
+  message: string = "",
   parentException: ref Exception = nil,
   scrn: JsonNode = nil,
-  stcktrace = ""
+  stcktrace: seq[string] = @[]
 ): untyped =
   var res = newException(exceptn, message, parentException)
   res.screen = scrn
   res.stacktrace = stcktrace
   res
+
+template newWebDriverException*(
+  message: string = "",
+  parentException: ref Exception = nil,
+  scrn: JsonNode = nil,
+  stcktrace: seq[string] = @[]
+): untyped =
+  newWebDriverException(WebDriverException, message, parentException, scrn, stcktrace)

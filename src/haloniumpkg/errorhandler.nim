@@ -1,4 +1,4 @@
-import exceptions
+import exceptions, json, strutils, strformat
 
 type
   ErrorCode* = enum
@@ -38,3 +38,161 @@ type
     InvalidSessionId = ("invalid session id")
     UnknownMethod = ("unknown method exception")
     MethodNotAllowed = (405, "unsupported operation")
+    GenericError
+
+proc getError(jsonNode: JsonNode): ErrorCode =
+  if jsonNode.kind == JInt:
+    result = jsonNode.getInt().ErrorCode
+  elif jsonNode.kind == JString:
+    for code in ErrorCode:
+      if $code == jsonNode.getStr(""):
+        return code
+    result = GenericError
+  else:
+    result = GenericError
+
+template createException(status: JsonNode): untyped =
+  let error = getError(status)
+  case error
+  of NoSuchElement:
+    newWebDriverException(NoSuchElementException)
+  of NoSuchFrame:
+    newWebDriverException(NoSuchFrameException)
+  of StaleElementReference:
+    newWebDriverException(StaleElementReferenceException)
+  of ElementNotVisible:
+    newWebDriverException(ElementNotVisibleException)
+  of InvalidElementState:
+    newWebDriverException(InvalidElementStateException)
+  of ElementIsNotSelectable:
+    newWebDriverException(ElementNotSelectableException)
+  of JavascriptError:
+    newWebDriverException(JavascriptException)
+  of Timeout, ScriptTimeout:
+    newWebDriverException(TimeoutException)
+  of NoSuchWindow:
+    newWebDriverException(NoSuchWindowException)
+  of InvalidCookieDomain:
+    newWebDriverException(InvalidCookieDomainException)
+  of UnableToSetCookie:
+    newWebDriverException(UnableToSetCookieException)
+  of UnexpectedAlertOpen:
+    newWebDriverException(UnexpectedAlertPresentException)
+  of NoAlertOpen:
+    newWebDriverException(NoAlertPresentException)
+  of InvalidElementCoordinates:
+    newWebDriverException(InvalidElementCoordinatesException)
+  of ImeNotAvailable:
+    newWebDriverException(ImeNotAvailableException)
+  of ImeEngineActivationFailed:
+    newWebDriverException(ImeActivationFailedException)
+  of InvalidSelector, InvalidXpathSelector, InvalidXpathSelectorReturnTyper:
+    newWebDriverException(InvalidSelectorException)
+  of SessionNotCreated:
+    newWebDriverException(SessionNotCreatedException)
+  of MoveTargetOutOfBounds:
+    newWebDriverException(MoveTargetOutofBoundsException)
+  of ElementNotInteractable:
+    newWebDriverException(ElementNotInteractableException)
+  of InvalidArgument:
+    newWebDriverException(InvalidArgumentException)
+  of NoSuchCookie:
+    newWebDriverException(NoSuchCookieException)
+  of UnableToCaptureScreen:
+    newWebDriverException(ScreenshotException)
+  of ElementClickIntercepted:
+    newWebDriverException(ElementClickInterceptedException)
+  of InsecureCertificate:
+    newWebDriverException(InsecureCertificateException)
+  of InvalidCoordinates:
+    newWebDriverException(InvalidCoordinatesException)
+  of InvalidSessionId:
+    newWebDriverException(InvalidSessionIdException)
+  of UnknownMethod:
+    newWebDriverException(UnknownMethodException)
+  of MethodNotAllowed:
+    newWebDriverException(MethodNotAllowedException)
+  else:
+    newWebDriverException()
+
+proc checkResponse*(response: JsonNode) =
+  var
+    status = response{"status"}
+    message = response{"message"}.getStr("")
+    screen: JsonNode
+    value: JsonNode
+
+  let
+    isInt = (status.kind == JInt)
+
+  if status.isNil or (isInt and status.getInt() == ErrorCode.Success.int):
+    return
+
+  if isInt:
+    let valueJson = response{"value"}
+    if not valueJson.isNil and valueJson.kind == JString:
+      try:
+        value = parseJson(valueJson.getStr(""))
+      except JsonParsingError:
+        discard
+      if not value.isNil:
+        if value.len == 1:
+          value = value["value"]
+
+        status = value{"error"}
+        if status.isNil:
+          status = value["status"]
+          let nmessage = value["value"]
+          if nmessage.kind != JString:
+            value = nmessage
+            message = nmessage{"message"}.getStr("")
+
+  var exception = createException(status)
+
+  if value.isNil or (value.kind == JString and value.getStr("").len == 0):
+    value = response["value"]
+  if value.kind == JString:
+    exception.msg = value.getStr("")
+    raise exception
+
+  if message.len == 0 and value.hasKey("message"):
+    message = value["message"].getStr("")
+
+  screen = value{"screen"}
+
+  let stValue = if value.hasKey("stackTrace"): value["stackTrace"] else: value{"stacktrace"}
+  var stacktrace: seq[string]
+
+  if not stValue.isNil:
+    if stValue.kind == JString:
+      stacktrace = stValue.getStr("").split('\n')
+    elif stValue.kind == JArray:
+      for node in stValue.items():
+        let line = node{"lineNumber"}.getStr("")
+        var file = node{"fileName"}.getStr("<anonymous>")
+
+        if line.len > 0:
+          file = fmt"{file}:{line}"
+
+        var meth = node{"methodName"}.getStr("<anonymous>")
+        if node.hasKey("className"):
+          let className = node["className"]
+          meth = fmt"{className}.{meth}"
+
+        stacktrace.add(fmt"    at {meth} ({file})")
+
+  if getError(status) == UnexpectedAlertOpen:
+    var alertText: string
+    if value.hasKey("data"):
+      alertText = value["data"]{"text"}.getStr("")
+    elif value.hasKey("alert"):
+      alertText = value["alert"]{"text"}.getStr("")
+
+    exception.alertText = alertText
+    raise exception
+
+  exception.msg = message
+  exception.screen = screen
+  exception.stacktrace = stacktrace
+
+  raise exception
