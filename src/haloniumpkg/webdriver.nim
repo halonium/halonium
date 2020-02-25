@@ -1,9 +1,9 @@
 # For reference, this is brilliant: https://github.com/jlipps/simple-wd-spec
 
-import httpclient, uri, json, tables, options, strutils, sequtils, base64, strformat
+import httpclient, uri, json, options, strutils, sequtils, base64, strformat
 
 import unicode except strip
-import exceptions, service, errorhandler, version, commands, utils, browser
+import exceptions, service, errorhandler, commands, utils, browser
 
 type
   WebDriver* = ref object
@@ -37,6 +37,9 @@ type
     PartialLinkTextSelector = "partial link text"
     TagNameSelector = "tag name"
     XPathSelector = "xpath"
+
+proc w3c*(element: Element): bool =
+  return element.session.driver.w3c
 
 proc `%`*(element: Element): JsonNode =
   result = %*{
@@ -113,19 +116,17 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
     if not result.hasKey("value"):
       result["value"] = nil
 
-
-# TODO: Separate this out into a "RemoteWebdriver" module so that it can be reused
-proc execute(self: WebDriver, command: Command, params: openArray[(string, string)]): JsonNode =
+proc execute(session: Session, command: Command, params: openArray[(string, string)]): JsonNode =
   var commandInfo: CommandEndpointTuple
   try:
-    commandInfo = self.browser.getCommandTuple(command)
+    commandInfo = session.driver.browser.getCommandTuple(command)
   except:
     raise newWebDriverException(fmt"Command '{$command}' could not be found.")
 
   let filledUrl = commandInfo[1].multiReplace(params)
 
   var newParams: seq[(string, string)]
-  if self.w3c:
+  if session.driver.w3c:
     for param in params:
       if param[0] != "$sessionId":
         newParams.add(param)
@@ -134,10 +135,23 @@ proc execute(self: WebDriver, command: Command, params: openArray[(string, strin
 
   let
     data = newParams.toJson
-    url = fmt"{self.url}{filledUrl}"
+    url = fmt"{session.driver.url}{filledUrl}"
 
-  let response = self.request(commandInfo[0], url, data)
-  checkResponse(response)
+  let response = session.driver.request(commandInfo[0], url, data)
+  if not response.isNil:
+    checkResponse(response)
+    return response
+
+  return %*{
+    "success": Success.int,
+    "value": nil,
+    "sessionId": session.id
+  }
+
+proc execute(element: Element, command: Command, params: openArray[(string, string)] = []): JsonNode =
+  var newParams = @params
+  newParams.add(("id", element.id))
+  return element.session.execute(command, newParams)
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
   case kind
@@ -152,5 +166,5 @@ proc getDriverUri(kind: BrowserKind, url: string): Uri =
 proc newRemoteWebDriver*(kind: BrowserKind, url: string = "http://localhost:4444", keepAlive = true): WebDriver =
   result = WebDriver(url: getDriverUri(kind, url), browser: kind, client: newHttpClient(), keepAlive: keepAlive)
 
-proc createSession*(self: WebDriver): Session =
+proc startSession*(self: WebDriver): Session =
   discard
