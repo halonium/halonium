@@ -1,6 +1,6 @@
 import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, tables, json
 
-import utils, exceptions, commands
+import utils, exceptions, commands, browser
 
 when defined(windows):
   import winlean
@@ -11,15 +11,6 @@ else:
   import posix
 
 type
-  ServiceKind* {.pure.} = enum
-    Chrome
-    Chromium
-    Firefox
-    Edge
-    InternetExplorer
-    Opera
-    Safari
-
   Service* = ref object
     path*: string
     args*: seq[string]
@@ -27,7 +18,7 @@ type
     logPath*: string
     logFile: File
     env*: StringTableRef
-    case kind*: ServiceKind
+    case kind*: BrowserKind
     of Firefox, InternetExplorer:
       logLevel*: string
     else:
@@ -48,7 +39,7 @@ proc getAllEnv(): StringTableRef =
   for key, val in envPairs():
     result[key] = val
 
-proc getDriverExe(kind: ServiceKind): string =
+proc getDriverExe(kind: BrowserKind): string =
   case kind
   of Firefox:
     "geckodriver"
@@ -63,7 +54,7 @@ proc getDriverExe(kind: ServiceKind): string =
   of Safari:
     "/usr/bin/safaridriver"
 
-proc desiredCapabilities*(kind: ServiceKind): JsonNode =
+proc desiredCapabilities*(kind: BrowserKind): JsonNode =
   case kind
   of Firefox:
     %*{
@@ -101,7 +92,7 @@ proc desiredCapabilities*(kind: ServiceKind): JsonNode =
       "platform": "MAC"
     }
 
-proc getStartupMessage(kind: ServiceKind): string =
+proc getStartupMessage(kind: BrowserKind): string =
   case kind
   of Chrome, Chromium:
     "Please see https://chromedriver.chromium.org/home"
@@ -111,7 +102,7 @@ proc getStartupMessage(kind: ServiceKind): string =
     ""
 
 proc newService*(
-  kind: ServiceKind,
+  kind: BrowserKind,
   path="",
   port=freePort(),
   env=getAllEnv(),
@@ -160,8 +151,8 @@ proc commandLineArgs*(service: Service): seq[string] =
   else:
     result = service.args
 
-proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple =
-  case service.kind
+proc getCommandTuple*(kind: BrowserKind, command: Command): CommandEndpointTuple =
+  case kind
   of Firefox:
     FirefoxCommandTable[command]
   of Chrome, Chromium:
@@ -170,6 +161,9 @@ proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple 
     SafariCommandTable[command]
   else:
     BaseCommandTable[command]
+
+proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple =
+  return getCommandTuple(service.kind, command)
 
 proc url*(service: Service): string =
   fmt"http://{joinHostPort(service.host, service.port)}"

@@ -3,7 +3,7 @@
 import httpclient, uri, json, tables, options, strutils, sequtils, base64, strformat
 
 import unicode except strip
-import exceptions, service, errorhandler, version, commands, utils
+import exceptions, service, errorhandler, version, commands, utils, browser
 
 type
   WebDriver* = ref object
@@ -109,6 +109,7 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
         status = ErrorCode.UnknownError.int
       return %*{"status": status, "value": body.strip()}
 
+# TODO: Separate this out into a "RemoteWebdriver" module so that it can be reused
 proc execute(self: WebDriver, command: Command, params: openArray[(string, string)]): JsonNode =
   var commandInfo: CommandEndpointTuple
   try:
@@ -128,6 +129,12 @@ proc execute(self: WebDriver, command: Command, params: openArray[(string, strin
 
   let
     data = newParams.toJson
-    url = fmt"{self.service.url}{filledUrl}"
+    url = fmt"{self.url}{filledUrl}"
 
   result = self.request(commandInfo[0], url, data)
+
+proc newWebDriver*(kind: BrowserKind, url: string = "http://127.0.0.1:4444"): WebDriver =
+  result = WebDriver(url: parseUri(url))
+
+proc createSession*(self: WebDriver): Session =
+  discard
