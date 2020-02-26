@@ -7,6 +7,10 @@ type
     stacktrace*: seq[string]
     alertText*: string
 
+  URLTemplateException* = object of Exception
+    ## Thrown when there are not enough parameters for a string
+    ## substitution
+
   NoSuchServiceExecutableException* = object of WebDriverException
 
   ProtocolException* = object of WebDriverException

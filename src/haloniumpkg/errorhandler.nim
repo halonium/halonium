@@ -123,7 +123,7 @@ proc checkResponse*(response: JsonNode) =
     value: JsonNode
 
   let
-    isInt = (status.kind == JInt)
+    isInt = (not status.isNil and status.kind == JInt)
 
   if status.isNil or (isInt and status.getInt() == ErrorCode.Success.int):
     return

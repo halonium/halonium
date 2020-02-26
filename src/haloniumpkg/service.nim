@@ -154,7 +154,8 @@ proc newService*(
   if kind in {InternetExplorer, Firefox}:
     result.logLevel = logLevel
 
-proc commandLineArgs*(service: Service): seq[string] =
+proc commandLineArgs(service: Service): seq[string] =
+  ## Gets command line args for the service executable
   case service.kind:
   of Firefox:
     result = @["--port", $service.port].concat(service.args)
@@ -162,12 +163,12 @@ proc commandLineArgs*(service: Service): seq[string] =
       result.add(@["--log", $service.logLevel])
     if service.host.len > 0:
       result.add(@["--host", service.host])
-  of Chrome:
-    result = service.args
-  of Chromium:
+  of Chromium, Chrome:
     result = @["--port", $service.port].concat(service.args)
     if service.logPath.len > 0:
       result.add(@["--log-path", service.logPath])
+    if service.logLevel.len > 0:
+      result.add(@["--log-level", service.logLevel])
   of InternetExplorer:
     result = @["--port", $service.port].concat(service.args)
     if service.logPath.len > 0:
@@ -222,6 +223,12 @@ proc sendRemoteShutdown(service: Service) =
       sleep(1000)
 
 proc stop*(service: Service) =
+  ## Stops the service sub-process and closes the log file
+  runnableExamples:
+    let service = newService(BrowserKind.Firefox)
+    # do something with the service
+    service.close()
+
   try:
     service.logFile.close()
   except Exception:
@@ -263,13 +270,32 @@ proc assertProcessIsStillRunning(service: Service) =
     raise newException(WebDriverException, &"Service {service.path} unexpectedly exited. \n{service.process.outputStream.readAll}")
 
 proc start*(service: Service) =
+  ## Starts the driver service and logs the output to `service.logPath`.
+  ##
+  ## Raises a WebDriverException when the service could not be connected to
+  runnableExamples:
+    let service = newService(Firefox)
+    service.start()
+
+    let service2 = newService(
+      Chrome,
+      path="customchromedriver",
+      port=55000,
+      env={"PATH", "/my/env/path"}.newStringTable,
+      args=@["--verbose", "--adb-port", "8980"],
+      logPath="/my/log/path",
+      startupMessage="This is a custom chrome driver",
+      logLevel="ALL"
+    )
+
+    service2.start()
+
   try:
     service.process = startProcess(
       service.path,
       args=service.commandLineArgs(),
       env=service.env,
       options={
-        poEchoCmd,
         poUsePath,
         poStdErrToStdOut
       }

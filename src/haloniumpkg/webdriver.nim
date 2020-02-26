@@ -13,10 +13,19 @@ type
     keepAlive*: bool
     w3c*: bool
     session: Session
+    capabilities: JsonNode
 
-  Session* = object
+  SessionKind* = enum
+    RemoteSession
+    LocalSession
+
+  Session* = ref object
     driver*: WebDriver
-    service: Service
+    case kind*: SessionKind
+    of LocalSession:
+      service: Service
+    of RemoteSession:
+      discard
     id*: string
 
   Element* = object
@@ -117,28 +126,25 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
     if not result.hasKey("value"):
       result["value"] = nil
 
-proc execute(session: Session, command: Command, params: openArray[(string, string)]): JsonNode =
+proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
   var commandInfo: CommandEndpointTuple
   try:
-    commandInfo = session.driver.browser.getCommandTuple(command)
+    commandInfo = self.browser.getCommandTuple(command)
   except:
     raise newWebDriverException(fmt"Command '{$command}' could not be found.")
 
-  let filledUrl = commandInfo[1].multiReplace(params)
+  let filledUrl = commandInfo[1].replace(params)
 
-  var newParams: seq[(string, string)]
-  if session.driver.w3c:
-    for param in params:
-      if param[0] != "$sessionId":
-        newParams.add(param)
-  else:
-    newParams = @params
+  var data = params
+  if self.w3c:
+    for key in params.keys():
+      if key == "sessionId":
+        data.delete(key)
 
   let
-    data = newParams.toJson
-    url = fmt"{session.driver.url}{filledUrl}"
+    url = fmt"{self.url}{filledUrl}"
 
-  let response = session.driver.request(commandInfo[0], url, data)
+  let response = self.request(commandInfo[0], url, data)
   if not response.isNil:
     checkResponse(response)
     return response
@@ -146,13 +152,17 @@ proc execute(session: Session, command: Command, params: openArray[(string, stri
   return %*{
     "success": Success.int,
     "value": nil,
-    "sessionId": session.id
+    "sessionId": if not self.session.isNil: self.session.id else: ""
   }
 
-proc execute(element: Element, command: Command, params: openArray[(string, string)] = []): JsonNode =
-  var newParams = @params
-  newParams.add(("id", element.id))
-  return element.session.execute(command, newParams)
+proc execute(self: Session, command: Command, params = %*{}): JsonNode =
+  params["sessionId"] = %self.id
+  self.driver.execute(command, params)
+
+proc execute(element: Element, command: Command, params: JsonNode = %*{}): JsonNode =
+  var newParams = params
+  newParams["id"] = %element.id
+  return element.session.driver.execute(command, newParams)
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
   case kind
@@ -167,14 +177,25 @@ proc getDriverUri(kind: BrowserKind, url: string): Uri =
 proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepAlive = true): WebDriver =
   result = WebDriver(url: getDriverUri(kind, url), browser: kind, client: newHttpClient(), keepAlive: keepAlive)
 
-proc getSession(self: WebDriver): Session =
+proc getSession(self: WebDriver, kind = RemoteSession): Session =
   let capabilities = desiredCapabilities(self.browser)
 
   let parameters = %*{
     "capabilities": capabilities,
     "desiredCapabilities": capabilities
   }
-  #self.execute()
+  var response = self.execute(Command.NewSession, parameters)
+  if not response.hasKey("sessionId"):
+    response = response["value"]
+
+  let sessionId = response["sessionId"].getStr()
+  self.capabilities = response{"value"}
+
+  if self.capabilities.isNil:
+    self.capabilities = response{"capabilities"}
+  self.w3c = response{"status"}.isNil
+
+  result = Session(driver: self, id: sessionId, kind: kind)
 
 proc createRemoteSession*(browser: BrowserKind, url = "http://localhost:4444", keepAlive = true): Session =
   let driver = newRemoteWebDriver(browser, url, keepAlive)
@@ -182,3 +203,29 @@ proc createRemoteSession*(browser: BrowserKind, url = "http://localhost:4444", k
 
 proc createRemoteSession*(self: WebDriver): Session =
   self.getSession()
+
+proc createSession*(self: WebDriver): Session =
+  result = getSession(self, LocalSession)
+
+  result.service = newService(self.browser)
+  self.url = result.service.url.parseUri()
+  result.service.start()
+
+proc createSession*(browser: BrowserKind): Session =
+  let service = newService(browser)
+  service.start()
+  let driver = newRemoteWebDriver(browser, service.url, keepAlive=true)
+  result = getSession(driver, LocalSession)
+  result.service = service
+
+proc close*(session: Session) =
+  ## Closes the current session
+  discard session.execute(Command.Quit)
+
+proc stop*(session: Session) =
+  session.close()
+  case session.kind
+  of LocalSession:
+    session.service.stop()
+  of RemoteSession:
+    discard

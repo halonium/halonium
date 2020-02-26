@@ -1,12 +1,9 @@
-import threadpool, os
+import os
 import haloniumpkg/webdriver
-import haloniumpkg/utils
-import haloniumpkg/service
 import haloniumpkg/browser
 
 proc main() =
-  var service = newService(Firefox, logLevel="config")
-  service.start()
+  var service = createSession(Firefox)
 
   while true:
     sleep(10000)
