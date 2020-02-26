@@ -302,14 +302,14 @@ proc start*(service: Service) =
     )
   except OSError as exc:
     if exc.errorCode == ENOENT:
-      raise newWebdriverException(fmt"'{service.path}' needs to be in PATH. {service.startupMessage}")
+      raise newWebDriverException(fmt"'{service.path}' could not be found in your PATH environment variable. {service.startupMessage}")
     elif exc.errorCode == EACCES:
       raise newException(
         WebDriverException,
         fmt"'{service.path}' may have the wrong permissions. Please set binary as executable and readable by the current user."
       )
   except Exception as exc:
-    raise newWebDriverException(fmt"'{service.path}' needs to be in PATH. {service.startupMessage}. Error: {exc.msg}")
+    raise newWebDriverException(fmt"'{service.path}' could not be found in your PATH environment variable. {service.startupMessage}. Error: {exc.msg}")
 
   var count = 0
   while true:
