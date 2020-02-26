@@ -12,9 +12,10 @@ type
     browser*: BrowserKind
     keepAlive*: bool
     w3c*: bool
+    session: Session
 
   Session* = object
-    driver: WebDriver
+    driver*: WebDriver
     service: Service
     id*: string
 
@@ -163,8 +164,21 @@ proc getDriverUri(kind: BrowserKind, url: string): Uri =
   else:
     parseUri(url)
 
-proc newRemoteWebDriver*(kind: BrowserKind, url: string = "http://localhost:4444", keepAlive = true): WebDriver =
+proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepAlive = true): WebDriver =
   result = WebDriver(url: getDriverUri(kind, url), browser: kind, client: newHttpClient(), keepAlive: keepAlive)
 
-proc startSession*(self: WebDriver): Session =
-  discard
+proc getSession(self: WebDriver): Session =
+  let capabilities = desiredCapabilities(self.browser)
+
+  let parameters = %*{
+    "capabilities": capabilities,
+    "desiredCapabilities": capabilities
+  }
+  #self.execute()
+
+proc createRemoteSession*(browser: BrowserKind, url = "http://localhost:4444", keepAlive = true): Session =
+  let driver = newRemoteWebDriver(browser, url, keepAlive)
+  driver.getSession()
+
+proc createRemoteSession*(self: WebDriver): Session =
+  self.getSession()
