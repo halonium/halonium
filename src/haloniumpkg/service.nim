@@ -10,6 +10,9 @@ when defined(windows):
 else:
   import posix
 
+const SERVICE_CHECK_INTERVAL = 100
+const SERVICE_RETRY_LIMIT = (30 * SERVICE_CHECK_INTERVAL/10).int
+
 type
   Service* = ref object
     path*: string
@@ -318,7 +321,7 @@ proc start*(service: Service) =
     if service.isConnectable():
       break
     count += 1
-    sleep(1000)
-    if count >= 30:
+    sleep(SERVICE_CHECK_INTERVAL)
+    if count >= SERVICE_RETRY_LIMIT:
       raise newWebDriverException(fmt"Cannot connect to service {service.path}. \l{service.process.outputStream.readAll}")
   spawn service.watchOutput()
