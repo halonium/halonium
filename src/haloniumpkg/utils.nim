@@ -1,4 +1,4 @@
-import net, strformat, strutils, json
+import net, strformat, strutils, json, regex, sequtils
 import nativesockets
 
 import exceptions
@@ -54,3 +54,19 @@ proc toJson*[T, U](vals: openArray[(T, U)]): JsonNode =
   result = newJObject()
   for val in vals:
     result[$val[0]] = %val[1]
+
+proc replace*(str: string, node: JsonNode): string =
+  let matches = str.findAll(re"\$(\w+)")
+  let keys = matches.mapIt(str[it.group(0)[0]])
+
+  var vals: seq[(string, string)]
+
+  for key in keys:
+    if not node.hasKey(key):
+      raise newException(URLTemplateException, fmt"Key '{key}' not found in JsonData")
+    if node[key].kind != JString:
+      raise newException(URLTemplateException, fmt"Key '{key}' is not a string")
+
+    vals.add(("$" & key, node[key].getStr()))
+
+  result = str.multiReplace(vals)

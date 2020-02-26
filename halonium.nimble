@@ -13,3 +13,4 @@ bin           = @["halonium"]
 # Dependencies
 
 requires "nim >= 1.0.6"
+requires "regex >= 0.13.0"
