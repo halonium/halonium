@@ -173,7 +173,7 @@ type
     StopCasting = "stopCasting"
 
 const sessionIdPath = "/session/$sessionId"
-const elementIdPath = "/element/$id"
+const elementIdPath = "/element/$elementId"
 const windowHandlePath = "/window/$windowHandle"
 
 const BasicCommands = @{

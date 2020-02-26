@@ -1,6 +1,6 @@
 # For reference, this is brilliant: https://github.com/jlipps/simple-wd-spec
 
-import httpclient, uri, json, options, strutils, sequtils, base64, strformat
+import httpclient, uri, json, options, strutils, sequtils, base64, strformat, tables
 
 import unicode except strip
 import exceptions, service, errorhandler, commands, utils, browser
@@ -42,11 +42,14 @@ type
     expiry*: Option[BiggestInt]
 
   LocationStrategy* = enum
-    CssSelector = "css selector"
+    IDSelector = "id"
+    XPathSelector = "xpath"
     LinkTextSelector = "link text"
     PartialLinkTextSelector = "partial link text"
+    NameSelector = "name"
     TagNameSelector = "tag name"
-    XPathSelector = "xpath"
+    ClassNameSelector = "class name"
+    CssSelector = "css selector"
 
 proc w3c*(element: Element): bool =
   return element.session.driver.w3c
@@ -126,6 +129,8 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
     if not result.hasKey("value"):
       result["value"] = nil
 
+proc stop*(session: Session)
+
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
   var commandInfo: CommandEndpointTuple
   try:
@@ -157,12 +162,22 @@ proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
 
 proc execute(self: Session, command: Command, params = %*{}): JsonNode =
   params["sessionId"] = %self.id
-  self.driver.execute(command, params)
+  try:
+    result = self.driver.execute(command, params)
+  except Exception as exc:
+    echo "Unexpected exception caught. Closing session..."
+    self.stop()
+    raise exc
 
 proc execute(element: Element, command: Command, params: JsonNode = %*{}): JsonNode =
   var newParams = params
-  newParams["id"] = %element.id
-  return element.session.driver.execute(command, newParams)
+  newParams["elementId"] = %element.id
+  try:
+    result = element.session.driver.execute(command, newParams)
+  except Exception as exc:
+    echo "Unexpected exception caught. Closing session..."
+    element.session.stop()
+    raise exc
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
   case kind
@@ -217,6 +232,44 @@ proc createSession*(browser: BrowserKind): Session =
   let driver = newRemoteWebDriver(browser, service.url, keepAlive=true)
   result = getSession(driver, LocalSession)
   result.service = service
+
+proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode =
+  var modifiedSelector = selector
+  var modifiedStrategy = strategy
+
+  if self.driver.w3c:
+    case strategy
+    of IDSelector:
+      modifiedSelector = &"[id=\"{selector}\"]"
+      modifiedStrategy = CssSelector
+    of TagNameSelector:
+      modifiedStrategy = CssSelector
+    of ClassNameSelector:
+      modifiedStrategy = CssSelector
+      modifiedSelector = &".{selector}"
+    of NameSelector:
+      modifiedStrategy = CssSelector
+      modifiedSelector = &"[name=\"{selector}\"]"
+    else:
+      discard
+
+  return %*{
+      "using": $modifiedStrategy,
+      "value": modifiedSelector
+  }
+
+proc findElement*(self: Session, selector: string, strategy = CssSelector): Option[Element] =
+  try:
+    let response = self.execute(Command.FindElement, getSelectorParams(self, selector, strategy))
+    for key, value in response["value"].getFields().pairs():
+      return some(Element(id: value.getStr(), session: self))
+  except NoSuchElementException:
+    return none(Element)
+
+proc navigate*(self: Session, url: string) =
+  let response = self.execute(Command.Get, %*{"url": %url})
+  if response{"value"}.getFields().len != 0:
+    raise newWebDriverException($response)
 
 proc close*(session: Session) =
   ## Closes the current session

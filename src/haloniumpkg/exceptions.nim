@@ -7,6 +7,10 @@ type
     stacktrace*: seq[string]
     alertText*: string
 
+  DriverException* = object of WebDriverException
+    ## Thrown when there is an error thrown by the driver itself.
+    ## IE: An invalid web page is loaded
+
   URLTemplateException* = object of Exception
     ## Thrown when there are not enough parameters for a string
     ## substitution

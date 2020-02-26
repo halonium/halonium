@@ -112,6 +112,8 @@ template createException(status: JsonNode): untyped =
     newWebDriverException(UnknownMethodException)
   of MethodNotAllowed:
     newWebDriverException(MethodNotAllowedException)
+  of UnknownError:
+    newWebDriverException(DriverException)
   else:
     newWebDriverException()
 

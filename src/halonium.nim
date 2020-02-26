@@ -3,10 +3,17 @@ import haloniumpkg/webdriver
 import haloniumpkg/browser
 
 proc main() =
-  var service = createSession(Firefox)
+  var session = createSession(Firefox)
+
+  session.navigate("https://no.such.website.com/")
+
+  sleep(5000)
+
+  let element = session.findElement("#img-logo")
+  echo element
 
   while true:
     sleep(10000)
-    service.stop()
+    session.stop()
     break
 main()
