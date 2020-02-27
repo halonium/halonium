@@ -175,6 +175,7 @@ type
 const sessionIdPath = "/session/$sessionId"
 const elementIdPath = "/element/$elementId"
 const windowHandlePath = "/window/$windowHandle"
+const nameTag = "$name"
 
 const BasicCommands = @{
   Command.Status: (HttpGet, "/status"),
@@ -220,8 +221,8 @@ const BasicCommands = @{
   Command.GetElementLocationOnceScrolledIntoView: (HttpGet, sessionIdPath & elementIdPath & "/location_in_view"),
   Command.GetElementSize: (HttpGet, sessionIdPath & elementIdPath & "/size"),
   Command.GetElementRect: (HttpGet, sessionIdPath & elementIdPath & "/rect"),
-  Command.GetElementAttribute: (HttpGet, sessionIdPath & elementIdPath & "/attribute/$name"),
-  Command.GetElementProperty: (HttpGet, sessionIdPath & elementIdPath & "/property/$name"),
+  Command.GetElementAttribute: (HttpGet, sessionIdPath & elementIdPath & "/attribute/" & nameTag),
+  Command.GetElementProperty: (HttpGet, sessionIdPath & elementIdPath & "/property/" & nameTag),
   Command.GetAllCookies: (HttpGet, sessionIdPath & "/cookie"),
   Command.AddCookie: (HttpPost, sessionIdPath & "/cookie"),
   Command.GetCookie: (HttpGet, sessionIdPath & "/cookie/$name"),
@@ -232,7 +233,7 @@ const BasicCommands = @{
   Command.SwitchToWindow: (HttpPost, sessionIdPath & "/window"),
   Command.NewWindow: (HttpPost, sessionIdPath & "/window/new"),
   Command.Close: (HttpDelete, sessionIdPath & "/window"),
-  Command.GetElementValueOfCssProperty: (HttpGet, sessionIdPath & elementIdPath & "/css/$propertyName"),
+  Command.GetElementValueOfCssProperty: (HttpGet, sessionIdPath & elementIdPath & "/css/" & nameTag),
   Command.ImplicitWait: (HttpPost, sessionIdPath & "/timeouts/implicit_wait"),
   Command.ExecuteAsyncScript: (HttpPost, sessionIdPath & "/execute_async"),
   Command.SetScriptTimeout: (HttpPost, sessionIdPath & "/timeouts/async_script"),
@@ -279,14 +280,14 @@ const BasicCommands = @{
   Command.ClearAppCache: (HttpDelete, sessionIdPath & "/application_cache/clear"),
   Command.GetNetworkConnection: (HttpGet, sessionIdPath & "/network_connection"),
   Command.SetNetworkConnection: (HttpPost, sessionIdPath & "/network_connection"),
-  Command.GetLocalStorageItem: (HttpGet, sessionIdPath & "/local_storage/key/$key"),
-  Command.RemoveLocalStorageItem: (HttpDelete, sessionIdPath & "/local_storage/key/$key"),
+  Command.GetLocalStorageItem: (HttpGet, sessionIdPath & "/local_storage/key/" & nameTag),
+  Command.RemoveLocalStorageItem: (HttpDelete, sessionIdPath & "/local_storage/key/" & nameTag),
   Command.GetLocalStorageKeys: (HttpGet, sessionIdPath & "/local_storage"),
   Command.SetLocalStorageItem: (HttpPost, sessionIdPath & "/local_storage"),
   Command.ClearLocalStorage: (HttpDelete, sessionIdPath & "/local_storage"),
   Command.GetLocalStorageSize: (HttpGet, sessionIdPath & "/local_storage/size"),
-  Command.GetSessionStorageItem: (HttpGet, sessionIdPath & "/session_storage/key/$key"),
-  Command.RemoveSessionStorageItem: (HttpDelete, sessionIdPath & "/session_storage/key/$key"),
+  Command.GetSessionStorageItem: (HttpGet, sessionIdPath & "/session_storage/key/" & nameTag),
+  Command.RemoveSessionStorageItem: (HttpDelete, sessionIdPath & "/session_storage/key/" & nameTag),
   Command.GetSessionStorageKeys: (HttpGet, sessionIdPath & "/session_storage"),
   Command.SetSessionStorageItem: (HttpPost, sessionIdPath & "/session_storage"),
   Command.ClearSessionStorage: (HttpDelete, sessionIdPath & "/session_storage"),

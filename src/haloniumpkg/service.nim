@@ -1,4 +1,5 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, tables, json
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
+import tempfile
 
 import utils, exceptions, commands, browser
 
@@ -22,25 +23,13 @@ type
     logFile: File
     env*: StringTableRef
     case kind*: BrowserKind
-    of Firefox, InternetExplorer:
+    of Firefox, InternetExplorer, Chrome, Chromium:
       logLevel*: string
     else:
       discard
     host: string
     startupMessage*: string
     process: Process
-    pchannel: Channel[bool]
-
-proc getDevNull*(): string =
-  when defined(windows):
-    "NUL"
-  else:
-    "/dev/null"
-
-proc getAllEnv(): StringTableRef =
-  result = newStringTable()
-  for key, val in envPairs():
-    result[key] = val
 
 proc getDriverExe(kind: BrowserKind): string =
   case kind
@@ -66,6 +55,7 @@ proc getDriverExe(kind: BrowserKind): string =
       "There is no service executable for Android. Please use a remote webdriver instead."
     )
 
+# TODO: Make this use Options or something
 proc desiredCapabilities*(kind: BrowserKind): JsonNode =
   case kind
   of Firefox:
@@ -140,7 +130,7 @@ proc newService*(
   args=newSeq[string](),
   logPath=getDevNull(),
   startupMessage="",
-  logLevel="fatal"
+  logLevel=""
 ): Service =
   result = Service(
     kind: kind,
@@ -152,7 +142,6 @@ proc newService*(
     logPath: logPath,
     startupMessage: if startupMessage.len > 0: startupMessage else: getStartupMessage(kind)
   )
-  result.pchannel.open()
 
   if kind in {InternetExplorer, Firefox}:
     result.logLevel = logLevel
@@ -167,23 +156,28 @@ proc commandLineArgs(service: Service): seq[string] =
     if service.host.len > 0:
       result.add(@["--host", service.host])
   of Chromium, Chrome:
-    result = @["--port", $service.port].concat(service.args)
+    result = @[fmt"--port={$service.port}"].concat(service.args)
     if service.logPath.len > 0:
-      result.add(@["--log-path", service.logPath])
+      result.add(fmt"--log-path={service.logPath}")
     if service.logLevel.len > 0:
-      result.add(@["--log-level", service.logLevel])
+      result.add(fmt"--log-level={service.logLevel}")
   of InternetExplorer:
-    result = @["--port", $service.port].concat(service.args)
+    result = @[fmt"--port={$service.port}"].concat(service.args)
     if service.logPath.len > 0:
-      result.add(@["--log-file", service.logPath])
+      result.add(fmt"--log-file={service.logPath}")
     if service.logLevel.len > 0:
-      result.add(@["--log-level", service.logLevel])
+      result.add(fmt"--log-level={service.logLevel}")
     if service.host.len > 0:
-      result.add(@["--host", service.host])
+      result.add(fmt"--host={service.host}")
+  of Safari:
+    result = @["--port", $service.port].concat(service.args)
   of WebkitGTK:
     result = @["-p", $service.port].concat(service.args)
   of PhantomJs:
-    result = @["--webdriver", $service.port].concat(service.args)
+    result = @[fmt"--webdriver={$service.port}"].concat(service.args)
+    let cookiesInArgs = result.anyIt(it.startsWith("--cookies-file"))
+    if not cookiesInArgs:
+      result.add(fmt"--cookies-file={mktempUnsafe()}")
   else:
     result = service.args
 
@@ -299,6 +293,7 @@ proc start*(service: Service) =
       args=service.commandLineArgs(),
       env=service.env,
       options={
+        poEchoCmd,
         poUsePath,
         poStdErrToStdOut
       }

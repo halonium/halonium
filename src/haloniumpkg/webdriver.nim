@@ -172,12 +172,22 @@ proc execute(self: Session, command: Command, params = %*{}): JsonNode =
 proc execute(element: Element, command: Command, params: JsonNode = %*{}): JsonNode =
   var newParams = params
   newParams["elementId"] = %element.id
+  newParams["sessionId"] = %element.session.id
   try:
     result = element.session.driver.execute(command, newParams)
   except Exception as exc:
     echo "Unexpected exception caught. Closing session..."
     element.session.stop()
     raise exc
+
+proc text*(element: Element): string =
+  element.execute(Command.GetElementText)["value"].getStr("")
+
+proc attribute*(element: Element, name: string): string =
+  element.execute(Command.GetElementAttribute, %*{"name": name})["value"].getStr("")
+
+proc property*(element: Element, name: string): string =
+  element.execute(Command.GetElementProperty, %*{"name": name})["value"].getStr("")
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
   case kind
@@ -219,15 +229,31 @@ proc createRemoteSession*(browser: BrowserKind, url = "http://localhost:4444", k
 proc createRemoteSession*(self: WebDriver): Session =
   self.getSession()
 
-proc createSession*(self: WebDriver): Session =
+proc createSession*(
+  self: WebDriver,
+  exePath="",
+  port=freePort(),
+  env=getAllEnv(),
+  args=newSeq[string](),
+  logPath=getDevNull(),
+  logLevel=""
+): Session =
   result = getSession(self, LocalSession)
+  result.service = newService(self.browser, exePath, port, env, args, logPath, logLevel=logLevel)
 
-  result.service = newService(self.browser)
   self.url = result.service.url.parseUri()
   result.service.start()
 
-proc createSession*(browser: BrowserKind): Session =
-  let service = newService(browser)
+proc createSession*(
+  browser: BrowserKind,
+  exePath="",
+  port=freePort(),
+  env=getAllEnv(),
+  args=newSeq[string](),
+  logPath=getDevNull(),
+  logLevel=""
+): Session =
+  let service = newService(browser, exePath, port, env, args, logPath, logLevel=logLevel)
   service.start()
   let driver = newRemoteWebDriver(browser, service.url, keepAlive=true)
   result = getSession(driver, LocalSession)
@@ -266,10 +292,28 @@ proc findElement*(self: Session, selector: string, strategy = CssSelector): Opti
   except NoSuchElementException:
     return none(Element)
 
+proc findElements*(self: Session, selector: string, strategy = CssSelector): seq[Element] =
+  try:
+    let response = self.execute(Command.FindElements, getSelectorParams(self, selector, strategy))
+    for element in response["value"].to(seq[JsonNode]):
+      for key, value in element.getFields().pairs():
+        result.add(Element(id: value.getStr(), session: self))
+  except NoSuchElementException:
+    return @[]
+
+proc currentWindowHandle*(self: Session): string =
+  if self.driver.w3c:
+    self.execute(Command.W3CGetCurrentWindowHandle)["value"].getStr("")
+  else:
+    self.execute(Command.GetCurrentWindowHandle)["value"].getStr("")
+
 proc navigate*(self: Session, url: string) =
   let response = self.execute(Command.Get, %*{"url": %url})
   if response{"value"}.getFields().len != 0:
     raise newWebDriverException($response)
+
+proc clear*(element: Element) =
+  discard element.execute(Command.ClearElement)
 
 proc close*(session: Session) =
   ## Closes the current session

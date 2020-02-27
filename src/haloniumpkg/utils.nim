@@ -1,4 +1,4 @@
-import net, strformat, strutils, json, regex, sequtils
+import net, strformat, strutils, json, regex, sequtils, strtabs, os
 import nativesockets
 
 import exceptions
@@ -70,3 +70,14 @@ proc replace*(str: string, node: JsonNode): string =
     vals.add(("$" & key, node[key].getStr()))
 
   result = str.multiReplace(vals)
+
+proc getDevNull*(): string =
+  when defined(windows):
+    "NUL"
+  else:
+    "/dev/null"
+
+proc getAllEnv*(): StringTableRef =
+  result = newStringTable()
+  for key, val in envPairs():
+    result[key] = val

@@ -5,12 +5,15 @@ import haloniumpkg/browser
 proc main() =
   var session = createSession(Firefox)
 
-  session.navigate("https://no.such.website.com/")
+  session.navigate("https://forum.nim-lang.org/")
+  echo session.currentWindowHandle()
 
   sleep(5000)
 
-  let element = session.findElement("#img-logo")
-  echo element
+  let elements = session.findElements(".thread-title")
+  for element in elements:
+    echo element.attribute("class")
+    echo element.property("innerText")
 
   while true:
     sleep(10000)
