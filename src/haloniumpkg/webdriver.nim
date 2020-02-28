@@ -301,6 +301,63 @@ proc findElements*(self: Session, selector: string, strategy = CssSelector): seq
   except NoSuchElementException:
     return @[]
 
+proc executeScript*(self: Session, code: string, args: varargs[JsonNode]): JsonNode =
+  let params = %*{
+    "script": code,
+    "args": args
+  }
+  if self.driver.w3c:
+    self.execute(Command.W3CExecuteScript, params)["value"]
+  else:
+    self.execute(Command.ExecuteScript, params)["value"]
+
+proc executeScriptAsync*(self: Session, code: string, args: varargs[JsonNode]): JsonNode =
+  let params = %*{
+    "script": code,
+    "args": args
+  }
+  if self.driver.w3c:
+    self.execute(Command.W3CExecuteScriptAsync, params)["value"]
+  else:
+    self.execute(Command.ExecuteAsyncScript, params)["value"]
+
+proc executeScript*(self: Session, code: string, args: varargs[Element]): JsonNode =
+  self.executeScript(code, args.mapIt(%it))
+
+proc executeScriptAsync*(self: Session, code: string, args: varargs[Element]): JsonNode =
+  self.executeScriptAsync(code, args.mapIt(%it))
+
+proc takeScreenshotBase64*(self: Session): string =
+  self.execute(Command.Screenshot)["value"].getStr()
+
+proc takeScreenshotBase64*(element: Element): string =
+  element.execute(Command.ElementScreenshot)["value"].getStr()
+
+proc takeScreenshotPng*(self: Session): string =
+  base64.decode(self.takeScreenshotBase64())
+
+proc takeScreenshotPng*(element: Element): string =
+  base64.decode(element.takeScreenshotBase64())
+
+proc saveScreenShotTo*(self: Session, filename: string): string =
+  let png = self.takeScreenShotPng()
+  try:
+    filename.writeFile(png)
+  except Exception as exc:
+    # TODO: Move this to a logging module
+    echo fmt"Could not save image '{filename}'. Error: {exc.msg}"
+
+proc saveScreenshotTo*(element: Element, filename: string): string =
+  let png = element.takeScreenShotPng()
+  try:
+    filename.writeFile(png)
+  except Exception as exc:
+    # TODO: Move this to a logging module
+    echo fmt"Could not save image '{filename}'. Error: {exc.msg}"
+
+proc sendKeys*(element: Element, text: string) =
+  discard element.execute(Command.SendKeysToElement, %*{"text": text})
+
 proc currentWindowHandle*(self: Session): string =
   if self.driver.w3c:
     self.execute(Command.W3CGetCurrentWindowHandle)["value"].getStr("")
