@@ -172,6 +172,9 @@ type
     StartTabMirroring = "startTabMirroring"
     StopCasting = "stopCasting"
 
+    # Custom
+    Pause = "haloniumPause"
+
 const sessionIdPath = "/session/$sessionId"
 const elementIdPath = "/element/$elementId"
 const windowHandlePath = "/window/$windowHandle"
