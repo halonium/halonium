@@ -127,6 +127,92 @@ type
     Meta = "\ue03d"
     Command = "\ue03d"
 
+  PointerType* {.pure.} = enum
+    Mouse = "mouse"
+    Touch = "touch"
+    Pen = "pen"
+
+  SourceType* {.pure.} = enum
+    None = "none"
+    Key = "key"
+    Pointer = "pointer"
+
+  MouseButton* {.pure.} = enum
+    Left, Middle, Right
+
+  ActionChain* = ref object
+    actions: JsonNode
+    session: Session
+
+  KeyAction* {.pure.} = enum
+    KeyUp = "keyUp"
+    KeyDown = "keyDown"
+    KeyPause = "pause"
+
+  PointerAction* {.pure.} = enum
+    PointerUp = "pointerUp"
+    PointerDown = "pointerDown"
+    PointerMove = "pointerMove"
+    PointerCancel = "pointerCancel"
+    PointerPause = "pause"
+
+  Origin* {.pure.} = enum
+    ViewPort = "viewport"
+    Pointer = "pointer"
+
+let actions = %*{
+  "actions": [
+    {
+      "type": "key",
+      "id": "someid",
+      "actions": [
+        {
+          "type": "keyUp",
+          "value": "D"
+        },
+        {
+          "type": "keyDown",
+          "value": "D"
+        },
+        {
+          "type": "pause",
+          "value": int(4*1000)
+        }
+      ]
+    },
+    {
+      "type": "pointer",
+      "parameters": {"pointerType": $Mouse},
+      "id": "genid",
+      "actions": [
+        {
+          "type": "pointerUp",
+          "duration": int(2*1000),
+          "button": MouseButton.Left.int
+        },
+        {
+          "type": "pointerDown",
+          "duration": int(2*1000),
+          "button": MouseButton.Left.int
+        },
+        {
+          "type": "pointerMove",
+          "duration": int(2*1000),
+          "x": 0,
+          "y": 0,
+          "origin": "viewport" # Or SourceType.Pointer or Element
+        },
+        {
+          "type": "pointerCancel"
+        },
+      ]
+    },
+    {
+      "type": "none"
+    }
+  ],
+}
+
 proc stop*(session: Session)
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode
 proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode
@@ -573,6 +659,64 @@ proc alertText*(self: Session): string =
   else:
     self.execute(Command.GetAlertText).unwrap
 
+proc clearActions*(self: Session) =
+  discard self.execute(Command.W3CClearActions)
+
+proc actionChain*(self: Session, pointerType = PointerType.Mouse): ActionChain =
+  result = ActionChain(
+    session: self,
+    actions: %*{
+      "actions": [
+        {
+          "type": $SourceType.Key,
+          "id": $SourceType.Key,
+          "actions": []
+        },
+        {
+          "type": $SourceType.Pointer,
+          "id": $SourceType.Pointer,
+          "parameters": { "pointerType": $PointerType.Mouse },
+          "actions": []
+        }
+      ]
+    }
+  )
+
+proc addAction(actionChain: ActionChain, sourceType: SourceType, action: JsonNode) =
+  case sourceType
+  of SourceType.Key:
+    actionChain.actions["actions"][0]["actions"].elems.add(action)
+  of SourceType.Pointer:
+    actionChain.actions["actions"][1]["actions"].elems.add(action)
+  of SourceType.None:
+    discard
+
+proc createPointerUp(button: MouseButton, duration: float = 0): JsonNode =
+  %*{
+    "type": $PointerAction.PointerUp,
+    "duration": (duration*1000).int,
+    "button": button.int
+  }
+
+proc createPointerDown(button: MouseButton, duration: float = 0): JsonNode =
+  %*{
+    "type": $PointerAction.PointerDown,
+    "duration": (duration*1000).int,
+    "button": button.int
+  }
+
+# TODO: What to do about origin = Element??
+proc createPointerMove(x, y: float, duration: float = 0, origin = Origin.ViewPort): JsonNode =
+  %*{
+    "type": $PointerAction.PointerMove,
+    "duration": (duration*1000).int,
+    "x": x.int,
+    "y": y.int,
+    "origin": $origin
+  }
+
+proc move*(actionChain: ActionChain): ActionChain =
+  discard
 
 ##################################### ELEMENT PROCS ###########################################
 
