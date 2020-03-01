@@ -5,6 +5,8 @@ import os, httpclient, uri, json, options, strutils, sequtils, base64, strformat
 import unicode except strip
 import exceptions, service, errorhandler, commands, utils, browser
 
+const actionDelayMs {.intdefine.} = 0
+
 type
   WebDriver* = ref object
     url*: Uri
@@ -148,71 +150,16 @@ type
   KeyAction* {.pure.} = enum
     KeyUp = "keyUp"
     KeyDown = "keyDown"
-    KeyPause = "pause"
 
   PointerAction* {.pure.} = enum
     PointerUp = "pointerUp"
     PointerDown = "pointerDown"
     PointerMove = "pointerMove"
     PointerCancel = "pointerCancel"
-    PointerPause = "pause"
 
   Origin* {.pure.} = enum
     ViewPort = "viewport"
     Pointer = "pointer"
-
-let actions = %*{
-  "actions": [
-    {
-      "type": "key",
-      "id": "someid",
-      "actions": [
-        {
-          "type": "keyUp",
-          "value": "D"
-        },
-        {
-          "type": "keyDown",
-          "value": "D"
-        },
-        {
-          "type": "pause",
-          "value": int(4*1000)
-        }
-      ]
-    },
-    {
-      "type": "pointer",
-      "parameters": {"pointerType": $Mouse},
-      "id": "genid",
-      "actions": [
-        {
-          "type": "pointerUp",
-          "duration": int(2*1000),
-          "button": MouseButton.Left.int
-        },
-        {
-          "type": "pointerDown",
-          "duration": int(2*1000),
-          "button": MouseButton.Left.int
-        },
-        {
-          "type": "pointerMove",
-          "duration": int(2*1000),
-          "x": 0,
-          "y": 0,
-          "origin": "viewport" # Or SourceType.Pointer or Element
-        },
-        {
-          "type": "pointerCancel"
-        },
-      ]
-    },
-    {
-      "type": "none"
-    }
-  ],
-}
 
 proc stop*(session: Session)
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode
@@ -223,6 +170,22 @@ proc x*(element: Element): float
 proc y*(element: Element): float
 proc width*(element: Element): float
 proc height*(element: Element): float
+proc text*(element: Element): string
+
+proc elementIsSome(element: Option[Element]): bool =
+  return element.isSome
+
+proc elementIsNone(element: Option[Element]): bool =
+  return element.isNone
+
+proc waitForElement*(
+  session: Session,
+  selector: string,
+  strategy=CssSelector,
+  timeout=10000,
+  pollTime=50,
+  waitCondition=elementIsSome
+): Option[Element]
 
 template unwrap(node: JsonNode, ty: untyped): untyped =
   if node.hasKey("value"):
@@ -319,7 +282,10 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
       result["value"] = nil
 
 proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepAlive = true): WebDriver =
-  result = WebDriver(url: getDriverUri(kind, url), browser: kind, client: newHttpClient(), keepAlive: keepAlive)
+  result = WebDriver(
+    url: getDriverUri(kind, url), browser: kind,
+    client: newHttpClient(), keepAlive: keepAlive
+  )
 
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
   var commandInfo: CommandEndpointTuple
@@ -403,7 +369,7 @@ proc execute(self: Session, command: Command, params = %*{}, stopOnException = t
     result = self.driver.execute(command, params)
   except Exception as exc:
     if stopOnException:
-      echo "Unexpected exception caught. Closing session..."
+      echo fmt"Unexpected exception caught. {exc.msg} Closing session..."
       self.stop()
     raise exc
 
@@ -452,14 +418,22 @@ proc getSelectorParams(self: Session, selector: string, strategy: LocationStrate
 
 proc findElement*(self: Session, selector: string, strategy = CssSelector): Option[Element] =
   try:
-    let response = self.execute(Command.FindElement, getSelectorParams(self, selector, strategy))
+    let response = self.execute(
+      Command.FindElement,
+      getSelectorParams(self, selector, strategy),
+      stopOnException = false
+    )
     return some(response["value"].toElement(self))
   except NoSuchElementException:
     return none(Element)
 
 proc findElements*(self: Session, selector: string, strategy = CssSelector): seq[Element] =
   try:
-    let response = self.execute(Command.FindElements, getSelectorParams(self, selector, strategy))
+    let response = self.execute(
+      Command.FindElements,
+      getSelectorParams(self, selector, strategy),
+      stopOnException = false
+     )
     for elementNode in response["value"].to(seq[JsonNode]):
       result.add(elementNode.toElement(self))
   except NoSuchElementException:
@@ -557,7 +531,7 @@ proc sendKeysToActiveElement*(self: Session, text: string) =
 
 proc close*(session: Session) =
   ## Closes the current session
-  discard session.execute(Command.Quit)
+  discard session.execute(Command.Quit, stopOnException=false)
 
 proc stop*(session: Session) =
   session.close()
@@ -637,9 +611,14 @@ proc setScriptTimeout*(self: Session, waitingTime: float) =
 
 proc setPageLoadTimeout*(self: Session, waitingTime: float) =
   try:
-    discard self.execute(Command.SetTimeouts, %*{"pageLoad": (waitingTime * 1000).int}, stopOnException = false)
+    discard self.execute(
+      Command.SetTimeouts, %*{"pageLoad": (waitingTime * 1000).int}, stopOnException = false
+    )
   except WebDriverException:
-    discard self.execute(Command.SetTimeouts, %*{"ms": (waitingTime * 1000).int, "type": "page load"})
+    discard self.execute(
+      Command.SetTimeouts,
+      %*{"ms": (waitingTime * 1000).int, "type": "page load"}
+    )
 
 proc dismissAlert*(self: Session) =
   if self.w3c:
@@ -668,6 +647,75 @@ proc alertText*(self: Session): string =
 proc clearActions*(self: Session) =
   discard self.execute(Command.W3CClearActions)
 
+proc waitForElement*(
+  session: Session, selector: string, strategy=CssSelector,
+  timeout=10000, pollTime=50,
+  waitCondition=elementIsSome
+): Option[Element] =
+  var waitTime = 0
+
+  when actionDelayMs > 0:
+    sleep(actionDelayMs)
+
+  while true:
+    try:
+      let loading = session.findElement(selector, strategy)
+      if waitCondition(loading):
+        return loading
+    except:
+      discard
+    sleep(pollTime)
+    waitTime += pollTime
+
+    if waitTime > timeout:
+      session.stop()
+      raise newWebDriverException(fmt"Waiting for element '{selector}' failed")
+
+proc waitForElements*(
+  session: Session, selector: string, strategy=CssSelector,
+  timeout=10000, pollTime=50
+): seq[Element] =
+  var waitTime = 0
+
+  when actionDelayMs > 0:
+    sleep(actionDelayMs)
+
+  while true:
+    try:
+      let loading = session.findElements(selector, strategy)
+      if loading.len > 0:
+        return loading
+    except Exception:
+      discard
+    sleep(pollTime)
+    waitTime += pollTime
+
+    if waitTime > timeout:
+      session.stop()
+      raise newWebDriverException(fmt"Waiting for elements '{selector}' failed")
+
+template waitForElement(chain: ActionChain, code: untyped): untyped =
+  let elOption = chain.session.waitForElement(selector, strategy = locationStrategy)
+  if elOption.isSome():
+    let element {.inject.} = elOption.get()
+    echo element.text
+    code
+  else:
+    chain.session.stop()
+    raise newWebDriverException(NoSuchElementException, fmt"Could not find element '{selector}'")
+
+template waitForSrcDest(chain: ActionChain, code: untyped): untyped =
+  let elOption1 = chain.session.waitForElement(source, strategy = locationStrategy)
+  let elOption2 = chain.session.waitForElement(dest, strategy = locationStrategy)
+  if elOption1.isSome() and elOption2.isSome():
+    let sourceElement {.inject.} = elOption1.get()
+    let destElement {.inject.} = elOption2.get()
+    code
+  else:
+    raise newWebDriverException(NoSuchElementException, fmt"Could not find elements '{source}' or '{dest}'")
+
+###################################### Actions #####################################
+
 proc actionChain*(self: Session, pointerType = PointerType.Mouse): ActionChain =
   result = ActionChain(
     session: self,
@@ -681,7 +729,7 @@ proc actionChain*(self: Session, pointerType = PointerType.Mouse): ActionChain =
         {
           "type": $SourceType.Pointer,
           "id": $SourceType.Pointer,
-          "parameters": { "pointerType": $PointerType.Mouse },
+          "parameters": { "pointerType": $pointerType },
           "actions": []
         }
       ]
@@ -699,6 +747,12 @@ proc getSourceType(command: Command): SourceType =
   else:
     SourceType.None
 
+proc createPause(duration: float = 0): JsonNode =
+  %*{
+    "type": "pause",
+    "duration": (duration * 1000).int
+  }
+
 proc addW3CAction(chain: ActionChain, sourceType: SourceType, action: JsonNode): ActionChain =
   case sourceType
   of SourceType.Key:
@@ -715,10 +769,14 @@ proc addAction(chain: ActionChain, command: Command, action: JsonNode): ActionCh
     case sourceType
     of SourceType.Key:
       chain.w3cActions["actions"][0]["actions"].elems.add(action)
+      # Add a pause for Pointer types when a Key type has been added
+      discard chain.addW3CAction(SourceType.Pointer, createPause())
     of SourceType.Pointer:
       chain.w3cActions["actions"][1]["actions"].elems.add(action)
+      # Add a pause for Key types when a Pointer type has been added
+      discard chain.addW3CAction(SourceType.Key, createPause())
     of SourceType.None:
-      chain.actions.add((command, action))
+      discard
   else:
     chain.actions.add((command, action))
   chain
@@ -728,25 +786,36 @@ proc resetActions*(chain: ActionChain): ActionChain =
   chain.w3cActions = %*{}
   chain
 
-proc createMouseUp(button: MouseButton, duration: float = 0, w3c = true): JsonNode =
+proc createMouseTy(ty: PointerAction, button: MouseButton, duration: float, w3c: bool): JsonNode =
   if w3c:
     %*{
-      "type": $PointerAction.PointerUp,
+      "type": $ty,
       "duration": (duration*1000).int,
       "button": button.int
     }
   else:
     %*{}
 
-proc createMouseDown(button: MouseButton, duration: float = 0, w3c = true): JsonNode =
+proc createKeyTy(ty: KeyAction, key: Key | Rune, w3c: bool): JsonNode =
   if w3c:
     %*{
-      "type": $PointerAction.PointerDown,
-      "duration": (duration*1000).int,
-      "button": button.int
+      "type": $ty,
+      "value": $key
     }
   else:
-    %*{}
+    %*{"value": $key}
+
+proc createKeyUp(key: Key | Rune, w3c = true): JsonNode =
+  createKeyTy(KeyAction.KeyUp, key, w3c)
+
+proc createKeyDown(key: Key | Rune, w3c = true): JsonNode =
+  createKeyTy(KeyAction.KeyDown, key, w3c)
+
+proc createMouseUp(button: MouseButton, duration: float = 0, w3c = true): JsonNode =
+  createMouseTy(PointerAction.PointerUp, button, duration, w3c)
+
+proc createMouseDown(button: MouseButton, duration: float = 0, w3c = true): JsonNode =
+  createMouseTy(PointerAction.PointerDown, button, duration, w3c)
 
 proc mouseButtonDown*(chain: ActionChain, button = MouseButton.Left, duration: float = 0): ActionChain =
   chain.addAction(Command.MouseDown, createMouseDown(button, duration, chain.session.w3c))
@@ -794,15 +863,30 @@ proc moveMouseTo*(chain: ActionChain, element: Element, deltaX, deltaY: float): 
   else:
     chain.addAction(Command.MoveTo, %*{"element": element.id, "xoffset": deltaX, "yoffset": deltaY})
 
+proc moveMouseTo*(
+  chain: ActionChain,
+  selector: string,
+  deltaX, deltaY: float,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.moveMouseTo(element, deltaX, deltaY)
+
 proc moveMouseTo*(chain: ActionChain, element: Element, duration: float): ActionChain =
   ## Moves the mouse cursor from it's location to the center of ``element`` over ``duration`` seconds
   if chain.session.w3c:
-    let rect = element.rect()
-    let x = rect.x + rect.width/2
-    let y = rect.y + rect.height/2
-    chain.addAction(Command.MoveTo, createPointerMove(x, y, duration, %element))
+    chain.addAction(Command.MoveTo, createPointerMove(0, 0, duration, %element))
   else:
     raise newWebDriverException("moveMouseTo with duration is not supported for non-W3C drivers")
+
+proc moveMouseTo*(
+  chain: ActionChain,
+  selector: string,
+  duration: float,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.moveMouseTo(element, duration)
 
 proc moveMouseTo*(chain: ActionChain, element: Element): ActionChain =
   ## Moves the mouse cursor from it's location to the center of ``element``
@@ -810,6 +894,15 @@ proc moveMouseTo*(chain: ActionChain, element: Element): ActionChain =
     chain.moveMouseTo(element, 0)
   else:
     chain.addAction(Command.MoveTo, %*{"element": element.id})
+
+proc moveMouseTo*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  ## Moves the mouse cursor from it's location to the center of ``selector``
+  chain.waitForElement():
+    chain.moveMouseTo(element)
 
 proc moveMouseBy*(chain: ActionChain, deltaX, deltaY, duration: float): ActionChain =
   ## Moves the mouse cursor from it current x, y to x + deltaX, y + deltaY over ``duration``
@@ -824,12 +917,6 @@ proc moveMouseBy*(chain: ActionChain, deltaX, deltaY: float): ActionChain =
   else:
     chain.addAction(Command.MoveTo, %*{"xoffset": deltaX, "yoffset": deltaY})
 
-proc createPause(duration: float): JsonNode =
-  %*{
-    "type": "pause",
-    "duration": (duration * 1000).int
-  }
-
 proc pause*(chain: ActionChain, duration: float = 0): ActionChain =
   if chain.session.w3c:
     chain.addW3CAction(SourceType.Pointer, createPause(duration)).
@@ -838,15 +925,228 @@ proc pause*(chain: ActionChain, duration: float = 0): ActionChain =
     chain.actions.add((Command.Pause, %*{"duration": (duration * 1000).int}))
     chain
 
-proc perform*(chain: ActionChain) =
+proc click*(chain: ActionChain, button = MouseButton.Left): ActionChain =
+  chain.mouseButtonDown(button)
+       .mouseButtonUp(button)
+
+proc click*(chain: ActionChain, element: Element, button = MouseButton.Left): ActionChain =
+  chain.moveMouseTo(element).click(button)
+
+proc click*(
+  chain: ActionChain,
+  selector: string,
+  button = MouseButton.Left,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.click(element, button)
+
+proc rightClick*(chain: ActionChain): ActionChain =
+  chain.click(MouseButton.Right)
+
+proc rightClick*(chain: ActionChain, element: Element): ActionChain =
+  chain.click(element, MouseButton.Right)
+
+proc rightClick*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.rightClick(element)
+
+proc clickAndHold*(chain: ActionChain, button = MouseButton.Left): ActionChain =
+  chain.mouseButtonDown(button)
+
+proc clickAndHold*(chain: ActionChain, element: Element, button = MouseButton.Left): ActionChain =
+  chain.moveMouseTo(element).clickAndHold(button)
+
+proc clickAndHold*(
+  chain: ActionChain,
+  selector: string,
+  button = MouseButton.Left,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.clickAndHold(element, button)
+
+proc rightClickAndHold*(chain: ActionChain): ActionChain =
+  chain.clickAndHold(MouseButton.Right)
+
+proc rightClickAndHold*(chain: ActionChain, element: Element): ActionChain =
+  chain.clickAndHold(element, MouseButton.Right)
+
+proc rightClickAndHold*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.rightClickAndHold(element)
+
+proc doubleClick*(chain: ActionChain, button = MouseButton.Left): ActionChain =
+  chain.click(button)
+       .click(button)
+
+proc doubleClick*(chain: ActionChain, element: Element, button = MouseButton.Left): ActionChain =
+  chain.moveMouseTo(element).doubleClick(button)
+
+proc doubleClick*(
+  chain: ActionChain,
+  selector: string,
+  button = MouseButton.Left,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.doubleClick(element, button)
+
+proc doubleRightClick*(chain: ActionChain): ActionChain =
+  chain.doubleClick(MouseButton.Right)
+
+proc doubleRightClick*(chain: ActionChain, element: Element): ActionChain =
+  chain.doubleClick(element, MouseButton.Right)
+
+proc doubleRightClick*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.doubleRightClick(element)
+
+proc release*(chain: ActionChain, button = MouseButton.Left): ActionChain =
+  chain.mouseButtonUp(button, 0)
+
+proc releaseRight*(chain: ActionChain): ActionChain =
+  chain.release(MouseButton.Right)
+
+proc release*(chain: ActionChain, element: Element, button = MouseButton.Left): ActionChain =
+  chain.moveMouseTo(element).mouseButtonUp(button, 0)
+
+proc releaseRight*(chain: ActionChain, element: Element): ActionChain =
+  chain.release(element, MouseButton.Right)
+
+proc release*(
+  chain: ActionChain,
+  selector: string,
+  button = MouseButton.Left,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.release(element, button)
+
+proc releaseRight*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.releaseRight(element)
+
+proc dragAndDrop*(chain: ActionChain, source, dest: Element): ActionChain =
+  chain.clickAndHold(source)
+       .release(dest)
+
+proc dragAndDrop*(chain: ActionChain, source, dest: string, locationStrategy = CssSelector): ActionChain =
+  chain.waitForSrcDest():
+    chain.dragAndDrop(sourceElement, destElement)
+
+proc dragAndDrop*(chain: ActionChain, source: Element, deltaX, deltaY: float): ActionChain =
+  chain.clickAndHold(source)
+       .moveMouseBy(deltaX, deltaY)
+       .release()
+
+proc dragAndDrop*(
+  chain: ActionChain,
+  selector: string,
+  deltaX, deltaY: float,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.dragAndDrop(element, deltaX, deltaY)
+
+proc keyDown*(chain: ActionChain, key: Key | Rune): ActionChain =
+  chain.addAction(Command.SendKeysToActiveElement, createKeyDown(key, chain.session.w3c))
+
+proc keyUp*(chain: ActionChain, key: Key | Rune): ActionChain =
+  chain.addAction(Command.SendKeysToActiveElement, createKeyUp(key, chain.session.w3c))
+
+proc keyDown*(chain: ActionChain, key: Key | Rune, element: Element): ActionChain =
+  chain.click(element).addAction(Command.SendKeysToActiveElement, createKeyDown(key, chain.session.w3c))
+
+proc keyDown*(
+  chain: ActionChain,
+  key: Key | Rune,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.keyDown(key, element)
+
+proc keyUp*(chain: ActionChain, key: Key | Rune, element: Element): ActionChain =
+  chain.click(element).addAction(Command.SendKeysToActiveElement, createKeyUp(key, chain.session.w3c))
+
+proc keyUp*(
+  chain: ActionChain,
+  key: Key | Rune,
+  selector: string,
+  locationStrategy = CssSelector
+): ActionChain =
+  chain.waitForElement():
+    chain.keyUp(key, element)
+
+proc convertKeyRuneString*(key: Key | Rune | string): string {.inline.} = $key
+
+proc sendKeys*(chain: ActionChain, keys: varargs[string, convertKeyRuneString]): ActionChain =
+  let res = keys.join("")
   if chain.session.w3c:
+    for key in res.runes:
+      discard chain.keyDown(key).keyUp(key)
+  else:
+    chain.actions.add((Command.SendKeysToActiveElement, %*{"value": res}))
+  chain
+
+proc sendKeys*(chain: ActionChain, element: Element, keys: varargs[string, convertKeyRuneString]): ActionChain =
+  chain.click(element).sendKeys(keys)
+
+proc sendKeys*(
+  chain: ActionChain,
+  selector: string,
+  keys: varargs[string, convertKeyRuneString]
+): ActionChain =
+  let locationStrategy = CssSelector
+  chain.waitForElement():
+    chain.sendKeys(element, keys)
+
+proc sendKeys*(
+  chain: ActionChain,
+  selector: string,
+  locationStrategy = CssSelector,
+  keys: varargs[string, convertKeyRuneString]
+): ActionChain =
+  chain.waitForElement():
+    chain.sendKeys(element, keys)
+
+proc clearActions*(chain: ActionChain): ActionChain =
+  ## Clears the queued actions after ``perform`` is called. Only works
+  ## for drivers that are W3C Compliant
+  if chain.session.w3c:
+    chain.session.clearActions()
+  chain
+
+proc perform*(chain: ActionChain): ActionChain =
+  ## Perform all of the queued actions in the chain
+  if chain.session.w3c:
+    echo chain.w3cActions.pretty
     discard chain.session.execute(Command.W3CActions, chain.w3cActions)
-  for (command, params) in chain.actions:
-    case command
-    of Command.Pause:
-      sleep(params["duration"].getInt())
-    else:
-      discard chain.session.execute(command, params)
+  else:
+    for (command, params) in chain.actions:
+      case command
+      of Command.Pause:
+        sleep(params["duration"].getInt())
+      else:
+        discard chain.session.execute(command, params)
+  chain
 
 ##################################### ELEMENT PROCS ###########################################
 
@@ -878,14 +1178,20 @@ proc property*(element: Element, name: string): string =
 
 proc findElement*(element: Element, selector: string, strategy = CssSelector): Option[Element] =
   try:
-    let response = element.execute(Command.FindChildElement, getSelectorParams(element.session, selector, strategy))
+    let response = element.execute(
+      Command.FindChildElement,
+      getSelectorParams(element.session, selector, strategy)
+    )
     return some(response["value"].toElement(element.session))
   except NoSuchElementException:
     return none(Element)
 
 proc findElements*(element: Element, selector: string, strategy = CssSelector): seq[Element] =
   try:
-    let response = element.execute(Command.FindChildElements, getSelectorParams(element.session, selector, strategy))
+    let response = element.execute(
+      Command.FindChildElements,
+      getSelectorParams(element.session, selector, strategy)
+    )
     for elementNode in response["value"].to(seq[JsonNode]):
       result.add(elementNode.toElement(element.session))
   except NoSuchElementException:
