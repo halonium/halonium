@@ -14,8 +14,8 @@ proc main() =
   discard session.actionChain()
                  .sendKeys("#search-box", "hey", Key.Enter)
                  # Figure out how to make actions use future element queries
-                 .moveMouseTo(".post-main .post-title .thread-title")
-                 .perform()
+                 .click(".post-main .post-title .thread-title a")
+                 .perform(debugMouseMove=true)
 
   # let elements = session.findElements(".thread-title")
   # for element in elements:
