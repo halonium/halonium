@@ -55,6 +55,12 @@ proc toJson*[T, U](vals: openArray[(T, U)]): JsonNode =
   for val in vals:
     result[$val[0]] = %val[1]
 
+proc toJson*(obj: object | tuple): JsonNode =
+  ## Generic constructor for JSON data. Creates a new ``JObject JsonNode``.
+  result = newJObject()
+  for field, val in obj.fieldPairs:
+    result[field] = %val
+
 proc replace*(str: string, node: JsonNode): string =
   let matches = str.findAll(re"\$(\w+)")
   let keys = matches.mapIt(str[it.group(0)[0]])

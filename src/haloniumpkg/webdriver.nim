@@ -35,13 +35,34 @@ type
     session: Session
     id*: string
 
+  Orientation* = enum
+    oLandscape = "landscape"
+    oPortrait = "portrait"
+
+  ApplicationCacheStatus* = object
+    build*: tuple[version: string]
+    message*: string
+    os*: tuple[arch, name, version: string]
+    ready*: bool
+
   WindowKind* = enum
-    wkTab = "tab"
     wkWindow = "window"
+    wkTab = "tab"
+
+  LogType* = enum
+    ltBrowser = "browser"
+    ltDriver = "driver"
+
+  LogEntry* = object
+    level*: string
+    source*: Option[string]
+    message*: string
+    timestamp*: uint64
 
   Window* = object
     handle*: string
     kind*: WindowKind
+    session: Session
 
   Cookie* = object
     name*: string
@@ -192,11 +213,14 @@ type
     of akPointerCancel:
       discard
 
+  Rect* = tuple[x, y, width, height: float]
+
 proc stop*(session: Session)
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode
 proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode
 proc `%`*(element: Element): JsonNode
-proc rect*(element: Element): tuple[x, y, width, height: float]
+proc clear*(element: Element)
+proc rect*(element: Element): Rect
 proc x*(element: Element): float
 proc y*(element: Element): float
 proc width*(element: Element): float
@@ -227,10 +251,11 @@ proc sourceType(action: Action): SourceType =
     result = stPointer
 
 template unwrap(node: JsonNode, ty: untyped): untyped =
-  if node.hasKey("value"):
-    node["value"].to(ty)
+  let n = node.copy
+  if n.hasKey("value"):
+    n["value"].to(ty)
   else:
-    node.to(ty)
+    n.to(ty)
 
 template unwrap(node: JsonNode): untyped =
   unwrap(node, type(result))
@@ -408,7 +433,8 @@ proc execute(self: Session, command: Command, params = %*{}, stopOnException = t
     result = self.driver.execute(command, params)
   except Exception as exc:
     if stopOnException:
-      echo fmt"Unexpected exception caught. {exc.msg} Closing session..."
+      echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
+      echo "Closing session..."
       self.stop()
     raise exc
 
@@ -519,7 +545,7 @@ proc currentWindow*(self: Session): Window =
   else:
     handle = self.execute(Command.GetCurrentWindowHandle).unwrap(string)
 
-  Window(handle: handle)
+  Window(handle: handle, session: self)
 
 proc windows*(self: Session): seq[Window] =
   var handles: seq[string]
@@ -529,7 +555,7 @@ proc windows*(self: Session): seq[Window] =
     handles = self.execute(Command.GetWindowHandles).unwrap(seq[string])
 
   for handle in handles:
-    result.add(Window(handle: handle))
+    result.add(Window(handle: handle, session: self))
 
 proc navigate*(self: Session, url: string) =
   let response = self.execute(Command.Get, %*{"url": %url})
@@ -611,6 +637,17 @@ proc switchToFrame*(self: Session, frame: Element) =
 proc switchToFrame*(self: Session, frameId: int) =
   discard self.execute(Command.SwitchToFrame, %*{"id": frameId})
 
+proc execute*(window: Window, command: Command, params: JsonNode = %*{}): JsonNode =
+  var newParams = params
+  newParams["windowHandle"] = %window.handle
+  try:
+    result = window.session.execute(command, newParams)
+  except Exception as exc:
+    echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
+    echo "Closing session..."
+    window.session.stop()
+    raise exc
+
 proc switchToWindow*(self: Session, window: Window) =
   discard self.execute(Command.SwitchToWindow, %*{"handle": window.handle})
 
@@ -623,11 +660,13 @@ proc newWindow*(self: Session, ty: WindowKind): Window =
   let response = self.execute(Command.NewWindow, %*{"type": $ty})["value"]
   result.handle = response["handle"].getStr()
   result.kind = response["type"].getStr().toWindowKind
+  result.session = self
 
 proc newWindow*(self: Session): Window =
   let response = self.execute(Command.NewWindow)["value"]
   result.handle = response["handle"].getStr()
   result.kind = response["type"].getStr().toWindowKind
+  result.session = self
 
 proc closeCurrentWindow*(self: Session) =
   discard self.execute(Command.Close)
@@ -636,19 +675,148 @@ proc closeWindow*(self: Session, window: Window) =
   self.switchToWindow(window)
   discard self.execute(Command.Close)
 
-proc setImplicitWait*(self: Session, waitingTime: float) =
+proc rect*(window: Window): Rect =
+  window.execute(Command.GetWindowRect).unwrap
+
+proc `rect=`*(window: Window, rect: Rect) =
+  if not window.session.w3c:
+    window.session.stop()
+    raise newWebDriverException(UnknownMethodException, "Setting window.rect is only supported on W3C compatible drivers")
+  discard window.execute(Command.SetWindowRect, rect.toJson)
+
+proc size*(window: Window): tuple[width, height: float] =
+  if window.session.w3c:
+    if window.handle != "current":
+      echo "Only current window is supported for W3C Compatible browsers"
+    let rect = window.rect
+    (width: rect.width, height: rect.height)
+  else:
+    window.execute(Command.GetWindowSize).unwrap
+
+proc `size=`*(window: Window, size: tuple[width, height: float]) =
+  if window.session.w3c:
+    if window.handle != "current":
+      echo "Only current window is supported for W3C Compatible browsers"
+    var rect = window.rect
+    rect.width = size.width
+    rect.height = size.height
+    window.rect = rect
+  else:
+    discard window.execute(Command.SetWindowSize, size.toJson)
+
+proc position*(window: Window): tuple[x, y: float] =
+  if window.session.w3c:
+    if window.handle != "current":
+      echo "Only current window is supported for W3C Compatible browsers"
+    let rect = window.rect
+    (x: rect.x, y: rect.y)
+  else:
+    window.execute(Command.GetWindowPosition).unwrap
+
+proc `position=`*(window: Window, pos: tuple[x, y: float]) =
+  if window.session.w3c:
+    if window.handle != "current":
+      echo "Only current window is supported for W3C Compatible browsers"
+    var rect = window.rect
+    rect.x = pos.x
+    rect.y = pos.y
+    window.rect = rect
+  else:
+    discard window.execute(Command.SetWindowPosition, pos.toJson)
+
+proc maximize*(window: Window) =
+  if window.session.w3c:
+    discard window.execute(Command.W3CMaximizeWindow)
+  else:
+    discard window.execute(Command.MaximizeWindow)
+
+proc toOrientation(str: string): Orientation =
+  for kind in Orientation:
+    if $kind == str:
+      return kind
+
+proc orientation*(self: Session): Orientation =
+  if self.w3c:
+    self.stop()
+    raise newWebDriverException("Orientation is only supported on non-W3C compatible drivers")
+  self.execute(Command.GetScreenOrientation)["value"].getStr().toOrientation
+
+proc `orientation=`*(self: Session, orientation: Orientation) =
+  if self.w3c:
+    self.stop()
+    raise newWebDriverException("Orientation is only supported on non-W3C compatible drivers")
+  discard self.execute(Command.SetScreenOrientation, %*{"orientation": $orientation})
+
+proc applicationCacheStatus*(self: Session): ApplicationCacheStatus =
+  self.execute(Command.GetAppCacheStatus).unwrap
+
+proc applicationCache*(self: Session) =
+  ## This seems to not be supported in the latest chrome/firefox/safari drivers.
+  ## Not sure what it's supposed to return
+  discard self.execute(Command.GetAppCache)
+
+proc clearApplicationCache*(self: Session) =
+  ## This seems to not be supported in the latest chrome/firefox/safari drivers.
+  ## Not sure what it's supposed to return
+  discard self.execute(Command.ClearAppCache)
+
+proc networkConnection*(self: Session) =
+  ## TODO: Support this. Requires implementing options
+  echo self.execute(Command.GetNetworkConnection)
+
+proc log*(self: Session, logType: LogType): seq[LogEntry] =
+  self.execute(Command.GetLog, %*{"type": $logType}).unwrap
+
+proc logTypes*(self: Session): seq[LogType] =
+  self.execute(Command.GetAvailableLogTypes).unwrap
+
+proc fullScreenWindow*(self: Session): Rect =
+  self.execute(Command.FullScreenWindow).unwrap
+
+proc minimizeWindow*(self: Session): Rect =
+  self.execute(Command.MinimizeWindow).unwrap
+
+################################ Non-W3C commands #################################
+
+proc localStorageKeys*(self: Session) =
+  if not self.w3c:
+    echo self.execute(Command.GetLocalStorageKeys)
+  else:
+    self.stop()
+    raise newWebDriverException("localStorageKeys is only supported on non-W3C compatible drivers")
+
+proc removeLocalStorageItem*(self: Session, item: string) =
+  if not self.w3c:
+    echo self.execute(Command.RemoveLocalStorageItem, %*{"key": item})
+  else:
+    self.stop()
+    raise newWebDriverException("removeLocalStorageItem is only supported on non-W3C compatible drivers")
+
+proc currentContextHandle*(self: Session) =
+  if not self.w3c:
+    echo self.execute(Command.CurrentContextHandle)
+  else:
+    self.stop()
+    raise newWebDriverException("currentContextHandle is only supported on non-W3C compatible drivers")
+
+proc firefoxContext*(self: Session): string =
+  self.execute(Command.CurrentContextHandle).unwrap
+
+###################################################################################
+
+proc `implicitWait=`*(self: Session, waitingTime: float) =
   if self.w3c:
     discard self.execute(Command.SetTimeouts, %*{"implicit": (waitingTime * 1000).int})
   else:
     discard self.execute(Command.ImplicitWait, %*{"ms": (waitingTime * 1000).int})
 
-proc setScriptTimeout*(self: Session, waitingTime: float) =
+proc `scriptTimeout=`*(self: Session, waitingTime: float) =
   if self.w3c:
     discard self.execute(Command.SetTimeouts, %*{"script": (waitingTime * 1000).int})
   else:
     discard self.execute(Command.SetScriptTimeout, %*{"ms": (waitingTime * 1000).int})
 
-proc setPageLoadTimeout*(self: Session, waitingTime: float) =
+proc `pageLoadTimeout`*(self: Session, waitingTime: float) =
   try:
     discard self.execute(
       Command.SetTimeouts, %*{"pageLoad": (waitingTime * 1000).int}, stopOnException = false
@@ -671,7 +839,7 @@ proc acceptAlert*(self: Session) =
   else:
     discard self.execute(Command.AcceptAlert)
 
-proc setAlertValue*(self: Session, value: string) =
+proc `alertValue=`*(self: Session, value: string) =
   if self.w3c:
     discard self.execute(Command.W3CSetAlertValue, %*{"value": value, "text": value})
   else:
@@ -874,12 +1042,7 @@ proc moveMouseTo*(chain: ActionChain, element: Element, deltaX, deltaY, duration
   ## Moves the mouse cursor from it's location to element.x + deltaX, element.y + deltaY over ``duration``
   ## seconds
   if chain.session.w3c:
-    let rect = element.rect()
-    let leftOffset = rect.width / 2
-    let topOffset = rect.height / 2
-    let left = -leftOffset + deltaX
-    let top = -topOffset + deltaY
-    chain.addW3CAction(createPointerMove(left, top, element, duration))
+    chain.addW3CAction(createPointerMove(deltaX, deltaY, element, duration))
   else:
     raise newWebDriverException("moveMouseTo with duration is not supported for non-W3C drivers")
 
@@ -1163,8 +1326,7 @@ proc sendKeys*(
   keys: varargs[string, convertKeyRuneString]
 ): ActionChain =
   let locationStrategy = CssSelector
-  chain.waitForElement():
-    chain.sendKeys(element, keys)
+  chain.click(selector, locationStrategy=locationStrategy).sendKeys(keys)
 
 proc sendKeys*(
   chain: ActionChain,
@@ -1172,8 +1334,7 @@ proc sendKeys*(
   locationStrategy = CssSelector,
   keys: varargs[string, convertKeyRuneString]
 ): ActionChain =
-  chain.waitForElement():
-    chain.sendKeys(element, keys)
+  chain.click(selector, locationStrategy=locationStrategy).sendKeys(keys)
 
 proc clearActions*(chain: ActionChain): ActionChain =
   ## Clears the queued actions after ``perform`` is called. Only works
@@ -1185,43 +1346,62 @@ proc clearActions*(chain: ActionChain): ActionChain =
 
 const DEBUG_MOUSE_MOVE_SCRIPT = """
   var id = "haloniumMouseDebugging";
-  var x, y, rect;
-  if (arguments.length == 3) {
-    var element = arguments[0];
-    x = arguments[1];
-    y = arguments[2];
-    rect = element.getBoundingClientRect();
-  } else {
-    rect = {top: "0px", left: "0px"};
-    x = arguments[0];
-    y = arguments[1];
-  }
-  var el;
+  var dotID = "haloniumMouseDebuggingDot";
+  var descID = "haloniumMouseDebuggingDescription";
+  var element = arguments[0];
+  var x = arguments[1];
+  var y = arguments[2];
+  var rect = element.getBoundingClientRect();
+
+  var el, redDot, description;
   if (document.getElementById(id) == null) {
     el = document.createElement("div");
+    redDot = document.createElement("div");
+    description = document.createElement("div");
+    el.appendChild(redDot);
+    el.appendChild(description);
+
     el.id = id;
+    redDot.id = dotID;
+    description.id = descID;
+
     el.style.position = "absolute";
-    el.style.borderRadius = "5px";
-    el.style.border = "2px solid red";
-    el.style.backgroundColor = "red";
-    el.style.width = "5px";
-    el.style.height = "5px";
-    el.style.display = "block";
     el.style.zIndex = "100000000";
+    el.style.display = "flex";
+    el.style.pointerEvents = "none";
+
+    redDot.style.borderRadius = "5px";
+    redDot.style.border = "2px solid red";
+    redDot.style.backgroundColor = "red";
+    redDot.style.width = "5px";
+    redDot.style.height = "5px";
+    redDot.style.display = "inline-block";
+    redDot.style.pointerEvents = "none";
+    redDot.style.marginRight = "5px";
+
+    description.style.display = "inline-block";
+    description.style.border = "1px solid black";
+    description.style.backgroundColor = "white";
+    description.style.borderRadius = "3px";
+    description.style.pointerEvents = "none";
+    description.style.paddingLeft = "5px";
+    description.style.paddingRight = "5px";
+
     document.body.appendChild(el);
   } else {
     el = document.getElementById(id);
+    redDot = document.getElementById(dotID);
+    description = document.getElementById(descID);
   }
   el.style.top = (rect.top + y) + "px";
   el.style.left = (rect.left + x) + "px";
+  description.innerHTML = "Moved to (x: " + el.style.left + ", y: " + el.style.top + ")";
   console.log(x);
   console.log(y);
-  console.log(el);
+  console.log(element);
 """
 
 proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): JsonNode =
-
-
   let isW3C = chain.session.w3c
   case action.ty
   of akKeyUp, akKeyDown:
@@ -1236,7 +1416,9 @@ proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): J
     if isW3C:
       %*{
         "type": $action.ty,
-        "value": action.intValue
+        "value": action.intValue,
+        # Some drivers need this (Safari)
+        "duration": action.intValue
       }
     else:
       %*{}
@@ -1274,8 +1456,8 @@ proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): J
       let selector = action.origin.selector
       let locationStrategy = action.origin.locationStrategy
       chain.waitForElement():
-        let x = action.x.int
-        let y = action.y.int
+        let x = action.x.int #(action.x + element.rect.width/2).int
+        let y = action.y.int #(action.y + element.rect.height/2).int
         if debugMouseMove:
           discard chain.session.executeScript(DEBUG_MOUSE_MOVE_SCRIPT, element, x, y)
         if isW3C:
@@ -1298,20 +1480,18 @@ proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): J
               "element": element.id
             }
     of okElement:
-      # if debugMouseMove:
-      #   let x = action.x.int
-      #   let y = action.y.int
-      #   let elOption = chain.session.waitForElement(action.origin.elementId, strategy=IDSelector)
-      #   if elOption.isSome():
-      #     discard chain.session.executeScript(DEBUG_MOUSE_MOVE_SCRIPT, elOption.get(), x, y)
+      let element = Element(id: action.origin.elementId, session: chain.session)
+      let x = action.x.int#(action.x + element.rect.width/2).int
+      let y = action.y.int#(action.y + element.rect.height/2).int
+      if debugMouseMove:
+        discard chain.session.executeScript(DEBUG_MOUSE_MOVE_SCRIPT, element, x, y)
       if isW3C:
         %*{
           "type": $action.ty,
           "duration": action.moveDuration,
-          "x": action.x.int,
-          "y": action.y.int,
+          "x": x,
+          "y": y,
           "origin": {
-            "ELEMENT": action.origin.elementId,
             "element-6066-11e4-a52e-4f735466cecf": action.origin.elementId
           }
         }
@@ -1414,7 +1594,8 @@ proc execute(element: Element, command: Command, params: JsonNode = %*{}): JsonN
   try:
     result = element.session.driver.execute(command, newParams)
   except Exception as exc:
-    echo "Unexpected exception caught. Closing session..."
+    echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
+    echo "Closing session..."
     element.session.stop()
     raise exc
 
@@ -1477,7 +1658,7 @@ proc submit*(element: Element) =
       if (arguments[0].dispatchEvent(e)) { arguments[0].submit() };
     """, form)
   else:
-    discard element.execute(Command.SUBMIT_ELEMENT)
+    discard element.execute(Command.SubmitElement)
 
 proc text*(element: Element): string =
   ## Returns the element's text, regardless of visibility
@@ -1527,7 +1708,7 @@ proc size*(element: Element): tuple[width, height: float] =
   else:
     element.execute(Command.GetElementSize).unwrap
 
-proc rect*(element: Element): tuple[x, y, width, height: float] =
+proc rect*(element: Element): Rect =
   if element.w3c:
     element.execute(Command.GetElementRect).unwrap
   else:

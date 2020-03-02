@@ -1,5 +1,6 @@
 import os, json, options
 import haloniumpkg/webdriver
+import haloniumpkg/utils
 import haloniumpkg/browser
 
 proc main() =
@@ -9,14 +10,19 @@ proc main() =
   # echo session.executeScript("return [1,2,3,4,5];")
   # echo session.allCookies()
   # echo session.newWindow(WindowKind.Window).kind
+  # var rect = session.currentWindow.rect
+  # rect.height = 1000;
+  # session.currentWindow.rect = rect
+  # echo session.currentWindow.size
+  # session.currentWindow.maximize
 
-  sleep(5000)
   discard session.actionChain()
                  .sendKeys("#search-box", "hey", Key.Enter)
-                 # Figure out how to make actions use future element queries
                  .click(".post-main .post-title .thread-title a")
                  .perform(debugMouseMove=true)
 
+  # echo session.log(ltBrowser)
+  # echo session.log(ltDriver)
   # let elements = session.findElements(".thread-title")
   # for element in elements:
   #   echo element.attribute("class")
@@ -24,7 +30,9 @@ proc main() =
   #   echo element.rect
 
   while true:
-    sleep(10000)
-    session.stop()
-    break
+    try:
+      sleep(1000)
+    except:
+      session.stop()
+      break
 main()
