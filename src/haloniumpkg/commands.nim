@@ -176,7 +176,8 @@ type
     Pause = "haloniumPause"
 
 const sessionIdPath = "/session/$sessionId"
-const elementIdPath = "/element/$elementId"
+const elementId = "$elementId"
+const elementIdPath = "/element/" & elementId
 const windowHandlePath = "/window/$windowHandle"
 const nameTag = "$name"
 
@@ -308,8 +309,8 @@ const FirefoxCommands = BasicCommands.concat(
   @{
     Command.GetContext: (HttpGet, sessionIdPath & "/moz/context"),
     Command.SetContext: (HttpPost, sessionIdPath & "/moz/context"),
-    Command.ElementGetAnonymousChildren: (HttpPost, sessionIdPath & "/moz/xbl/$id/anonymous_children"),
-    Command.ElementFindAnonymousElementsByAttribute: (HttpPost, sessionIdPath & "/moz/xbl/$id/anonymous_by_attribute"),
+    Command.ElementGetAnonymousChildren: (HttpPost, sessionIdPath & "/moz/xbl/" & elementId & "/anonymous_children"),
+    Command.ElementFindAnonymousElementsByAttribute: (HttpPost, sessionIdPath & "/moz/xbl/" & elementId & "/anonymous_by_attribute"),
     Command.InstallAddon: (HttpPost, sessionIdPath & "/moz/addon/install"),
     Command.UninstallAddon: (HttpPost, sessionIdPath & "/moz/addon/uninstall"),
     Command.FullPageScreenshot: (HttpGet, sessionIdPath & "/moz/screenshot/full")

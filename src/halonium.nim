@@ -2,11 +2,14 @@ import os, json, options
 import haloniumpkg/webdriver
 import haloniumpkg/utils
 import haloniumpkg/browser
+import tables
 
 proc main() =
-  var session = createSession(Firefox)
+  var session = createSession(Safari)
 
   session.navigate("https://forum.nim-lang.org/")
+  session.safariSetPermission("getUserMedia", false)
+  echo session.safariPermissions["getUserMedia"]
   # echo session.executeScript("return [1,2,3,4,5];")
   # echo session.allCookies()
   # echo session.newWindow(WindowKind.Window).kind

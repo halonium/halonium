@@ -31,6 +31,12 @@ type
       discard
     id*: string
 
+  NetworkConditions* = object
+    offline: bool
+    latency: int
+    downloadThroughput: int
+    uploadThroughput: int
+
   Element* = ref object
     session: Session
     id*: string
@@ -216,6 +222,7 @@ type
   Rect* = tuple[x, y, width, height: float]
 
 proc stop*(session: Session)
+proc quit*(session: Session)
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode
 proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode
 proc `%`*(element: Element): JsonNode
@@ -606,6 +613,9 @@ proc stop*(session: Session) =
   of RemoteSession:
     discard
 
+proc quit*(session: Session) =
+  session.stop()
+
 proc getCookie*(self: Session, name: string): Option[Cookie] =
   try:
     self.execute(Command.GetCookie, %*{"name": name}, stopOnException=false).unwrap
@@ -798,9 +808,6 @@ proc currentContextHandle*(self: Session) =
   else:
     self.stop()
     raise newWebDriverException("currentContextHandle is only supported on non-W3C compatible drivers")
-
-proc firefoxContext*(self: Session): string =
-  self.execute(Command.CurrentContextHandle).unwrap
 
 ###################################################################################
 
@@ -1730,3 +1737,114 @@ proc height*(element: Element): float =
 
 proc cssPropertyValue*(element: Element, name: string): string =
   element.execute(Command.GetElementValueOfCssProperty, %*{"name": name}).unwrap
+
+################################## Firefox Commands #########################################
+
+proc checkFirefox(self: Session) =
+  if self.driver.browser != BrowserKind.Firefox:
+    self.quit()
+    raise newWebDriverException("You must be using the Firefox webdriver in order to use this command")
+
+proc firefoxContext*(self: Session): string =
+  self.checkFirefox
+  self.execute(Command.GetContext).unwrap
+
+proc `firefoxContext=`*(self: Session, context: string) =
+  self.checkFirefox
+  discard self.execute(Command.SetContext, %*{"context": context})
+
+proc firefoxInstallAddon*(self: Session, addonPath: string, temporary = false): string =
+  self.checkFirefox
+  ## Returns the id of the addon
+  self.execute(Command.InstallAddon, %*{"path": addonPath, "temporary": false}).unwrap
+
+proc firefoxUninstallAddon*(self: Session, id: string) =
+  self.checkFirefox
+  discard self.execute(Command.UninstallAddon, %*{"id": id})
+
+proc firefoxFullPageScreenshotBase64*(self: Session): string =
+  self.execute(Command.FullPageScreenshot).unwrap
+
+proc firefoxFullPageScreenshotPng*(self: Session): string =
+  base64.decode(self.firefoxFullPageScreenshotBase64())
+
+proc firefoxSaveFullPageScreenShotTo*(self: Session, filename: string): string =
+  let png = self.firefoxFullPageScreenshotPng()
+  try:
+    filename.writeFile(png)
+  except Exception as exc:
+    # TODO: Move this to a logging module
+    echo fmt"Could not save image '{filename}'. Error: {exc.msg}"
+
+################################## Chrome Commands #########################################
+
+proc checkChrome(self: Session) =
+  if self.driver.browser != BrowserKind.Chrome:
+    self.quit()
+    raise newWebDriverException("You must be using the Chrome webdriver in order to use this command")
+
+proc chromeLaunchApp*(self: Session, appId: string) =
+  self.checkChrome
+  discard self.execute(Command.LaunchApp, %*{"id": appId})
+
+proc chromeNetworkConditions*(self: Session): NetworkConditions =
+  self.checkChrome
+  self.execute(Command.GetNetworkConditions).unwrap
+
+proc `chromeNetworkConditions=`*(self: Session, networkConditions: NetworkConditions) =
+  self.checkChrome
+  var payload = %*{
+    "offline": networkConditions.offline,
+    "latency": networkConditions.latency,
+    "download_throughput": networkConditions.downloadThroughput,
+    "upload_throughput": networkConditions.uploadThroughput
+  }
+  discard self.execute(Command.SetNetworkConditions, payload)
+
+proc chromeSinks*(self: Session): seq[string] =
+  self.checkChrome
+  self.execute(Command.GetSinks).unwrap
+
+proc `chromeSink=`*(self: Session, sinkName: string) =
+  self.checkChrome
+  discard self.execute(Command.SetSinkToUse, %*{"sinkName": sinkName})
+
+proc chromeStartTabMirroring*(self: Session, sinkName: string) =
+  self.checkChrome
+  discard self.execute(Command.StartTabMirroring, %*{"sinkName": sinkName})
+
+proc chromeStopCasting*(self: Session, sinkName: string) =
+  self.checkChrome
+  discard self.execute(Command.StopCasting, %*{"sinkName": sinkName})
+
+proc chromeIssueMessage*(self: Session): string =
+  self.checkChrome
+  discard self.execute(Command.GetIssueMessage).unwrap
+
+proc chromeExecuteCDPCommand*(self: Session, cmd: string, args: JsonNode): JsonNode =
+  self.checkChrome
+  discard self.execute(Command.ExecuteCdpCommand, %*{"cmd": cmd, "params": args}).unwrap
+
+################################## Safari Commands #########################################
+
+proc checkSafari(self: Session) =
+  if self.driver.browser != BrowserKind.Safari:
+    self.quit()
+    raise newWebDriverException("You must be using the Safari webdriver in order to use this command")
+
+proc safariPermissions*(self: Session): Table[string, bool] =
+  self.checkSafari
+  self.execute(Command.GetPermissions).unwrap(JsonNode)["permissions"].unwrap
+
+proc `safariPermissions=`*(self: Session, perms: Table[string, bool]) =
+  self.checkSafari
+  discard self.execute(Command.SetPermissions, %*{"permissions": perms})
+
+proc safariSetPermission*(self: Session, key: string, value: bool) =
+  self.checkSafari
+  self.safariPermissions = {key: value}.toTable
+
+proc safariDebug*(self: Session) =
+  self.checkSafari
+  discard self.execute(Command.AttachDebugger)
+  discard self.executeScript("debugger;")
