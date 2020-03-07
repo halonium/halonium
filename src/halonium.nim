@@ -5,11 +5,19 @@ import haloniumpkg/browser
 import tables
 
 proc main() =
-  var session = createSession(Safari)
+  var session = createSession(Chrome)
 
-  session.navigate("https://forum.nim-lang.org/")
-  session.safariSetPermission("getUserMedia", false)
-  echo session.safariPermissions["getUserMedia"]
+  session.navigate("http://demo.guru99.com/test/upload/")
+  let element = session.waitForElement("#uploadfile_0").get()
+
+  element.uploadFile("/Users/joey/Downloads/Question-Checklist.pdf")
+
+  session.actionChain()
+         .click("#terms")
+         .click("#submitbutton")
+         .perform()
+  # session.safariSetPermission("getUserMedia", false)
+  # echo session.safariPermissions["getUserMedia"]
   # echo session.executeScript("return [1,2,3,4,5];")
   # echo session.allCookies()
   # echo session.newWindow(WindowKind.Window).kind
@@ -19,10 +27,10 @@ proc main() =
   # echo session.currentWindow.size
   # session.currentWindow.maximize
 
-  discard session.actionChain()
-                 .sendKeys("#search-box", "hey", Key.Enter)
-                 .click(".post-main .post-title .thread-title a")
-                 .perform(debugMouseMove=true)
+  # discard session.actionChain()
+  #                .sendKeys("#search-box", "hey", Key.Enter)
+  #                .click(".post-main .post-title .thread-title a")
+  #                .perform(debugMouseMove=true)
 
   # echo session.log(ltBrowser)
   # echo session.log(ltDriver)

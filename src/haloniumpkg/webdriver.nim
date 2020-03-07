@@ -1,9 +1,11 @@
 # For reference, this is brilliant: https://github.com/jlipps/simple-wd-spec
 
 import os, httpclient, uri, json, options, strutils, sequtils, base64, strformat, tables
+import base64
 import unicode except strip
 
-import uuids
+import zip / zipfiles
+import uuids, tempfile
 import exceptions, service, errorhandler, commands, utils, browser
 
 const actionDelayMs {.intdefine.} = 0
@@ -1537,7 +1539,7 @@ proc createNewW3CActions*(
     ]
   }
 
-proc perform*(chain: ActionChain, debugMouseMove = false): ActionChain =
+proc perform*(chain: ActionChain, debugMouseMove = false): ActionChain {.discardable.} =
   ## Perform all of the queued actions in the chain
   if chain.session.w3c:
     var pointerActions: seq[Action]
@@ -1666,6 +1668,20 @@ proc submit*(element: Element) =
     """, form)
   else:
     discard element.execute(Command.SubmitElement)
+
+proc uploadFile*(element: Element, filename: string) =
+  let zfile = mktempUnsafe()
+  defer: zfile.removeFile
+
+  var z: ZipArchive
+  discard z.open(zfile, fmWrite)
+  z.addFile(filename.extractFilename, filename)
+  z.close()
+
+  let bytes = base64.encode(zfile.readFile())
+
+  let value = element.execute(Command.UploadFile, %*{"file": bytes}).unwrap(string)
+  element.sendKeys(value)
 
 proc text*(element: Element): string =
   ## Returns the element's text, regardless of visibility
