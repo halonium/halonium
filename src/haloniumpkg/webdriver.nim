@@ -7,6 +7,7 @@ import unicode except strip
 import zip / zipfiles
 import uuids, tempfile
 import exceptions, service, errorhandler, commands, utils, browser
+import driveroptions
 
 const actionDelayMs {.intdefine.} = 0
 
