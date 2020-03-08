@@ -10,3 +10,4 @@ type
     PhantomJs
     Android
     WebkitGTK
+    WPEWebkit

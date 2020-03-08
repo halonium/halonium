@@ -121,4 +121,17 @@ proc ieOptions*(
 
   result = %*{"se:ieOptions": opts}
 
+proc wpeWebkitOptions*(
+  args: seq[string] = @[],
+  binary = none(string)
+): JsonNode =
+  let opts = %*{}
+  opts["args"] = %args
+  opts["binary"] = %binary
+
+  for key in opts.keys:
+    if opts[key].kind == JNull:
+      opts.delete(key)
+  result = %*{"wpe:browserOptions": opts}
+
 # TODO: operaOptions, webkitGTKOptions, wpeWebkit

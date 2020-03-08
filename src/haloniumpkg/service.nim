@@ -49,6 +49,8 @@ proc getDriverExe(kind: BrowserKind): string =
     "phantomjs"
   of WebkitGTK:
     "WebKitWebDriver"
+  of WPEWebkit:
+    "WPEWebDriver"
   of Android:
     raise newWebdriverException(
       NoSuchServiceExecutableException,
@@ -112,6 +114,12 @@ proc desiredCapabilities*(kind: BrowserKind): JsonNode =
       "version": "",
       "platform": "ANY"
     }
+  of WPEWebkit:
+    %*{
+      "browserName": "MiniBrowser",
+      "version": "",
+      "platform": "ANY",
+    }
 
 proc getStartupMessage(kind: BrowserKind): string =
   case kind
@@ -171,7 +179,7 @@ proc commandLineArgs(service: Service): seq[string] =
       result.add(fmt"--host={service.host}")
   of Safari:
     result = @["--port", $service.port].concat(service.args)
-  of WebkitGTK:
+  of WebkitGTK, WPEWebkit:
     result = @["-p", $service.port].concat(service.args)
   of PhantomJs:
     result = @[fmt"--webdriver={$service.port}"].concat(service.args)
