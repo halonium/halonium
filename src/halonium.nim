@@ -1,11 +1,22 @@
-import os, json, options
-import haloniumpkg/webdriver
+import options
+import haloniumpkg/commands
+import haloniumpkg/exceptions
+import haloniumpkg/service
 import haloniumpkg/utils
+import haloniumpkg/webdriver
 import haloniumpkg/browser
-import tables
+import haloniumpkg/driveroptions
+
+export commands
+export exceptions
+export service
+export utils
+export webdriver
+export browser
+export driveroptions
 
 proc main() =
-  var session = createSession(Chrome)
+  var session = createSession(Chrome, browserOptions=chromeOptions(args=["--headless"]))
 
   session.navigate("http://demo.guru99.com/test/upload/")
   let element = session.waitForElement("#uploadfile_0").get()

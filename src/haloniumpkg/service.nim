@@ -1,4 +1,5 @@
 import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
+import options
 import tempfile
 
 import utils, exceptions, commands, browser
@@ -132,7 +133,7 @@ proc getStartupMessage(kind: BrowserKind): string =
 
 proc newService*(
   kind: BrowserKind,
-  path="",
+  path=none(string),
   port=freePort(),
   env=getAllEnv(),
   args=newSeq[string](),
@@ -142,7 +143,7 @@ proc newService*(
 ): Service =
   result = Service(
     kind: kind,
-    path: if path.len > 0: path else: getDriverExe(kind),
+    path: if path.isSome: path.get else: getDriverExe(kind),
     port: port,
     env: env,
     host: "127.0.0.1",
@@ -204,6 +205,7 @@ proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple 
   return getCommandTuple(service.kind, command)
 
 proc url*(service: Service): string =
+  ## Returns the url that the service is running at
   case service.kind
   of PhantomJs, Android:
     fmt"http://{joinHostPort(service.host, service.port)}/wd/hub"
@@ -301,7 +303,6 @@ proc start*(service: Service) =
       args=service.commandLineArgs(),
       env=service.env,
       options={
-        poEchoCmd,
         poUsePath,
         poStdErrToStdOut
       }

@@ -11,16 +11,17 @@ type
     esbBottom
 
 proc chromeOptions*(
-  args: seq[string] = @[],
-  pageLoadStrategy: PageLoadStrategy = plsNormal,
-  extensions: seq[string] = @[],
+  args: openArray[string] = [],
+  extensions: openArray[string] = [],
   binary = none(string),
   debuggerAddress = none(string),
+  pageLoadStrategy = none(PageLoadStrategy),
   experimentalOptions = %*{}
 ): JsonNode =
   let opts = experimentalOptions.copy()
   opts["args"] = %args
-  opts["pageLoadStrategy"] = %($pageLoadStrategy)
+  if pageLoadStrategy.isSome:
+    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
   opts["binary"] = %binary
   opts["debuggerAddress"] = %debuggerAddress
 
@@ -41,15 +42,16 @@ proc chromeOptions*(
   result = %*{"goog:chromeOptions": opts}
 
 proc edgeOptions*(
-  args: seq[string] = @[],
-  pageLoadStrategy: PageLoadStrategy = plsNormal,
+  args: openArray[string] = [],
+  pageLoadStrategy = none(PageLoadStrategy),
   isLegacy = false,
   customBrowserName = none(string)
 ): JsonNode =
   let opts = %*{}
   opts["args"] = %args
   if isLegacy:
-    opts["pageLoadStrategy"] = %($pageLoadStrategy)
+    if pageLoadStrategy.isSome:
+      opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
   else:
     opts["browserName"] = %customBrowserName
 
@@ -59,15 +61,16 @@ proc edgeOptions*(
   result = %*{"ms:edgeOptions": opts}
 
 proc firefoxOptions*(
-  args: seq[string] = @[],
-  pageLoadStrategy: PageLoadStrategy = plsNormal,
+  args: openArray[string] = [],
+  pageLoadStrategy = none(PageLoadStrategy),
   binary = none(string),
   logLevel = none(string)
 ): JsonNode =
   ## TODO: Support firefox profile + addons
   let opts = %*{}
   opts["args"] = %args
-  opts["pageLoadStrategy"] = %($pageLoadStrategy)
+  if pageLoadStrategy.isSome:
+    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
   opts["binary"] = %binary
   opts["log"] = %*{"level": logLevel}
 
@@ -78,7 +81,7 @@ proc firefoxOptions*(
   result = %*{"moz:firefoxOptions": opts}
 
 proc ieOptions*(
-  args: seq[string] = @[],
+  args: openArray[string] = [],
   browserAttachTimeout = none(int),
   elementScrollBehavior = none(ElementScrollBehavior),
   ensureCleanSession = none(bool),
@@ -121,8 +124,24 @@ proc ieOptions*(
 
   result = %*{"se:ieOptions": opts}
 
+proc webkitGTKOptions*(
+  args: openArray[string] = [],
+  binary = none(string),
+  overlayScrollbars = none(bool)
+): JsonNode =
+  let opts = %*{}
+  opts["args"] = %args
+  opts["binary"] = %binary
+  opts["useOverlayScrollbars"] = %overlayScrollbars
+
+  for key in opts.keys:
+    if opts[key].kind == JNull:
+      opts.delete(key)
+
+  result = %*{"webkitgtk:browserOptions": opts}
+
 proc wpeWebkitOptions*(
-  args: seq[string] = @[],
+  args: openArray[string] = [],
   binary = none(string)
 ): JsonNode =
   let opts = %*{}
@@ -134,4 +153,23 @@ proc wpeWebkitOptions*(
       opts.delete(key)
   result = %*{"wpe:browserOptions": opts}
 
-# TODO: operaOptions, webkitGTKOptions, wpeWebkit
+proc operaOptions*(
+  args: openArray[string] = [],
+  pageLoadStrategy = none(PageLoadStrategy),
+  androidPackageName = none(string),
+  androidDeviceSocket = none(string),
+  androidCommandLineFile = none(string)
+): JsonNode =
+  let opts = %*{}
+  opts["args"] = %args
+  if pageLoadStrategy.isSome:
+    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
+  opts["androidPackage"] = %androidPackageName
+  opts["androidDeviceSocket"] = %androidDeviceSocket
+  opts["androidCommandLineFile"] = %androidCommandLineFile
+
+  for key in opts.keys:
+    if opts[key].kind == JNull:
+      opts.delete(key)
+
+  result = %*{"operaOptions": opts}
