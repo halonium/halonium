@@ -51,10 +51,10 @@ proc main() =
   #   echo element.property("innerText")
   #   echo element.rect
 
-  while true:
-    try:
-      sleep(1000)
-    except:
-      session.stop()
-      break
+  # while true:
+  #   try:
+  #     sleep(1000)
+  #   except:
+  #     session.stop()
+  #     break
 main()
