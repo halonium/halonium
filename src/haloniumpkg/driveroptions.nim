@@ -10,6 +10,13 @@ type
     esbTop
     esbBottom
 
+template assign(node: JsonNode, key: string, value: untyped) =
+  when value is Option:
+    if value.isSome:
+      node[key] = %($value.get)
+  else:
+    node[key] = %value
+
 proc chromeOptions*(
   args: openArray[string] = [],
   extensions: openArray[string] = [],
@@ -19,11 +26,10 @@ proc chromeOptions*(
   experimentalOptions = %*{}
 ): JsonNode =
   let opts = experimentalOptions.copy()
-  opts["args"] = %args
-  if pageLoadStrategy.isSome:
-    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
-  opts["binary"] = %binary
-  opts["debuggerAddress"] = %debuggerAddress
+  opts.assign("args", args)
+  opts.assign("pageLoadStrategy", pageLoadStrategy)
+  opts.assign("binary", binary)
+  opts.assign("debuggerAddress", debuggerAddress)
 
   var loadedExtensions = newSeqOfCap[string](extensions.len())
   for ext in extensions:
@@ -33,11 +39,7 @@ proc chromeOptions*(
     else:
       raise newException(IOError, &"Could not find extension at: '{newPath}'")
 
-  opts["extensions"] = %loadedExtensions
-
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
+  opts.assign("extensions", loadedExtensions)
 
   result = %*{"goog:chromeOptions": opts}
 
@@ -50,14 +52,10 @@ proc edgeOptions*(
   let opts = %*{}
   opts["args"] = %args
   if isLegacy:
-    if pageLoadStrategy.isSome:
-      opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
+    opts.assign("pageLoadStrategy", pageLoadStrategy)
   else:
-    opts["browserName"] = %customBrowserName
+    opts.assign("browserName", customBrowserName)
 
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
   result = %*{"ms:edgeOptions": opts}
 
 proc firefoxOptions*(
@@ -68,15 +66,10 @@ proc firefoxOptions*(
 ): JsonNode =
   ## TODO: Support firefox profile + addons
   let opts = %*{}
-  opts["args"] = %args
-  if pageLoadStrategy.isSome:
-    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
-  opts["binary"] = %binary
-  opts["log"] = %*{"level": logLevel}
-
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
+  opts.assign("args", args)
+  opts.assign("pageLoadStrategy", pageLoadStrategy)
+  opts.assign("binary", binary)
+  opts.assign("log", %*{"level": logLevel})
 
   result = %*{"moz:firefoxOptions": opts}
 
@@ -101,26 +94,22 @@ proc ieOptions*(
 ): JsonNode =
   ## TODO: Support firefox profile + addons
   let opts = additionalOptions.copy()
-  opts["ie.browserCommandLineSwitches"] = %args.join(" ")
-  opts["browserAttachTimeout"] = %browserAttachTimeout
-  opts["elementScrollBehavior"] = %elementScrollBehavior
-  opts["ie.ensureCleanSession"] = %ensureCleanSession
-  opts["ie.fileUploadDialogTimeout"] = %fileUploadDialogTimeout
-  opts["ie.forceCreateProcessApi"] = %forceCreateProcessApi
-  opts["ie.forceShellWindowsApi"] = %forceShellWindowsApi
-  opts["ie.enableFullPageScreenshot"] = %fullPageScreenshot
-  opts["ignoreProtectedModeSettings"] = %ignoreProtectedModeSettings
-  opts["ignoreZoomSetting"] = %ignoreZoomLevel
-  opts["initialBrowserUrl"] = %initialBrowserUrl
-  opts["nativeEvents"] = %nativeEvents
-  opts["enablePersistentHover"] = %persistentHover
-  opts["requireWindowFocus"] = %requireWindowFocus
-  opts["ie.usePerProcessProxy"] = %usePerProcessProxy
-  opts["ie.validateCookieDocumentType"] = %validateCookieDocumentType
-
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
+  opts.assign("ie.browserCommandLineSwitches", args.join(" "))
+  opts.assign("browserAttachTimeout", browserAttachTimeout)
+  opts.assign("elementScrollBehavior", elementScrollBehavior)
+  opts.assign("ie.ensureCleanSession", ensureCleanSession)
+  opts.assign("ie.fileUploadDialogTimeout", fileUploadDialogTimeout)
+  opts.assign("ie.forceCreateProcessApi", forceCreateProcessApi)
+  opts.assign("ie.forceShellWindowsApi", forceShellWindowsApi)
+  opts.assign("ie.enableFullPageScreenshot", fullPageScreenshot)
+  opts.assign("ignoreProtectedModeSettings", ignoreProtectedModeSettings)
+  opts.assign("ignoreZoomSetting", ignoreZoomLevel)
+  opts.assign("initialBrowserUrl", initialBrowserUrl)
+  opts.assign("nativeEvents", nativeEvents)
+  opts.assign("enablePersistentHover", persistentHover)
+  opts.assign("requireWindowFocus", requireWindowFocus)
+  opts.assign("ie.usePerProcessProxy", usePerProcessProxy)
+  opts.assign("ie.validateCookieDocumentType", validateCookieDocumentType)
 
   result = %*{"se:ieOptions": opts}
 
@@ -130,13 +119,9 @@ proc webkitGTKOptions*(
   overlayScrollbars = none(bool)
 ): JsonNode =
   let opts = %*{}
-  opts["args"] = %args
-  opts["binary"] = %binary
-  opts["useOverlayScrollbars"] = %overlayScrollbars
-
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
+  opts.assign("args", args)
+  opts.assign("binary", binary)
+  opts.assign("useOverlayScrollbars", overlayScrollbars)
 
   result = %*{"webkitgtk:browserOptions": opts}
 
@@ -145,12 +130,9 @@ proc wpeWebkitOptions*(
   binary = none(string)
 ): JsonNode =
   let opts = %*{}
-  opts["args"] = %args
-  opts["binary"] = %binary
+  opts.assign("args", args)
+  opts.assign("binary", binary)
 
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
   result = %*{"wpe:browserOptions": opts}
 
 proc operaOptions*(
@@ -161,15 +143,10 @@ proc operaOptions*(
   androidCommandLineFile = none(string)
 ): JsonNode =
   let opts = %*{}
-  opts["args"] = %args
-  if pageLoadStrategy.isSome:
-    opts["pageLoadStrategy"] = %($pageLoadStrategy.get)
-  opts["androidPackage"] = %androidPackageName
-  opts["androidDeviceSocket"] = %androidDeviceSocket
-  opts["androidCommandLineFile"] = %androidCommandLineFile
-
-  for key in opts.keys:
-    if opts[key].kind == JNull:
-      opts.delete(key)
+  opts.assign("args", args)
+  opts.assign("pageLoadStrategy", pageLoadStrategy)
+  opts.assign("androidPackage", androidPackageName)
+  opts.assign("androidDeviceSocket", androidDeviceSocket)
+  opts.assign("androidCommandLineFile", androidCommandLineFile)
 
   result = %*{"operaOptions": opts}

@@ -1,7 +1,7 @@
 import json
 
 type
-  WebDriverException* = object of Exception
+  WebDriverException* = object of CatchableError
     ## Base webdriver exception
     screen*: JsonNode
     stacktrace*: seq[string]
@@ -11,7 +11,7 @@ type
     ## Thrown when there is an error thrown by the driver itself.
     ## IE: An invalid web page is loaded
 
-  URLTemplateException* = object of Exception
+  URLTemplateException* = object of CatchableError
     ## Thrown when there are not enough parameters for a string
     ## substitution
 

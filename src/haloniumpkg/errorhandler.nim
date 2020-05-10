@@ -44,9 +44,9 @@ proc getError(jsonNode: JsonNode): ErrorCode =
   if jsonNode.kind == JInt:
     result = jsonNode.getInt().ErrorCode
   elif jsonNode.kind == JString:
-    for code in ErrorCode:
-      if $code == jsonNode.getStr(""):
-        return code
+    for i in 0 ..< int(ErrorCode.high):
+      if $cast[ErrorCode](i) == jsonNode.getStr(""):
+        return cast[ErrorCode](i)
     result = GenericError
   else:
     result = GenericError
