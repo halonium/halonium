@@ -223,6 +223,7 @@ type
 
   Rect* = tuple[x, y, width, height: float]
 
+
 proc stop*(session: Session)
 proc quit*(session: Session)
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode
@@ -1660,7 +1661,8 @@ proc saveScreenshotTo*(element: Element, filename: string): string =
     # TODO: Move this to a logging module
     echo fmt"Could not save image '{filename}'. Error: {exc.msg}"
 
-proc sendKeys*(element: Element, text: string) =
+proc sendKeys*(element: Element, keys: varargs[string, convertKeyRuneString]) =
+  let text = keys.join("")
   discard element.execute(Command.SendKeysToElement, %*{"text": text})
 
 proc clear*(element: Element) =
@@ -1764,6 +1766,19 @@ proc height*(element: Element): float =
 
 proc cssPropertyValue*(element: Element, name: string): string =
   element.execute(Command.GetElementValueOfCssProperty, %*{"name": name}).unwrap
+
+proc `$`*(element: Element): string =
+  let tag = element.session.executeScript("""
+    let element = arguments[0];
+    var openTag = "<"+element.tagName.toLowerCase();
+    for (var i = 0; i < element.attributes.length; i++) {
+        var attrib = element.attributes[i];
+        openTag += " "+attrib.name + '="' + attrib.value+ '"';
+    }
+    openTag += ">";
+    return openTag;
+  """, element).to(string)
+  &"Element({tag})"
 
 ################################## Firefox Commands #########################################
 
