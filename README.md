@@ -1,5 +1,9 @@
 # halonium
-A browser automation engine written in Nim translated from Python
+A browser automation engine written in Nim translated from Python.
+
+## Status
+
+This library is mostly converted from the Python selenium codebase as of ~Dec 2019. There are no automated tests yet, but most webdrivers are working from basic testing (see src/haloniumpkg/browser.nim for supported browsers). Some things might not work yet which automated testing would catch. Feel free to file issues :)
 
 ## Usage
 
