@@ -1608,16 +1608,17 @@ proc `%`*(element: Element): JsonNode =
     "element-6066-11e4-a52e-4f735466cecf": element.id
   }
 
-proc execute*(element: Element, command: Command, params: JsonNode = %*{}): JsonNode =
+proc execute*(element: Element, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonNode =
   var newParams = params
   newParams["elementId"] = %element.id
   newParams["sessionId"] = %element.session.id
   try:
     result = element.session.driver.execute(command, newParams)
   except Exception as exc:
-    echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
-    echo "Closing session..."
-    element.session.stop()
+    if stopOnException:
+      echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
+      echo "Closing session..."
+      element.session.stop()
     raise exc
 
 proc attribute*(element: Element, name: string): string =
@@ -1630,7 +1631,8 @@ proc findElement*(element: Element, selector: string, strategy = CssSelector): O
   try:
     let response = element.execute(
       Command.FindChildElement,
-      getSelectorParams(element.session, selector, strategy)
+      getSelectorParams(element.session, selector, strategy),
+      stopOnException = false
     )
     return some(response["value"].toElement(element.session))
   except NoSuchElementException:
@@ -1640,7 +1642,8 @@ proc findElements*(element: Element, selector: string, strategy = CssSelector): 
   try:
     let response = element.execute(
       Command.FindChildElements,
-      getSelectorParams(element.session, selector, strategy)
+      getSelectorParams(element.session, selector, strategy),
+      stopOnException = false
     )
     for elementNode in response["value"].to(seq[JsonNode]):
       result.add(elementNode.toElement(element.session))
