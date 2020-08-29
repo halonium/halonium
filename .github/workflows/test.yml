@@ -31,6 +31,8 @@ jobs:
         uses: jiro4989/setup-nim-action@v1
         with:
           nim-version: ${{ matrix.nim }}
+      - name: Add env path
+        run:  export PATH=$HOME/.nimble/bin:$PATH
       - name: Print Nim version
         run: nim -v
       - name: Print Nimble version
