@@ -315,7 +315,7 @@ proc start*(service: Service) =
         fmt"'{service.path}' may have the wrong permissions. Please set binary as executable and readable by the current user."
       )
     else:
-      raise newWebDriverException(exc.msg)
+      raise newWebDriverException(fmt"{exc.msg}. {service.startupMessage}")
   except Exception as exc:
     raise newWebDriverException(fmt"'{service.path}' could not be found in your PATH environment variable. {service.startupMessage}. Error: {exc.msg}")
 
