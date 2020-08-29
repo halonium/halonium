@@ -27,9 +27,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: ./
-        with:
-          nim-version: ${{ matrix.version }}
       - name: Setup nim
         uses: jiro4989/setup-nim-action@v1
         with:
