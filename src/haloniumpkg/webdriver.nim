@@ -1701,7 +1701,7 @@ proc uploadFile*(element: Element, filename: string) =
 
 proc text*(element: Element): string =
   ## Returns the element's text, regardless of visibility
-  element.property("innerText")
+  element.property("innerText").strip()
 
 proc visibleText*(element: Element): string =
   element.execute(Command.GetElementText).unwrap
