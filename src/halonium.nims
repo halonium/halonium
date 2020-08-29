@@ -1,1 +1,2 @@
 --threads:on
+--passL:"-lz"
