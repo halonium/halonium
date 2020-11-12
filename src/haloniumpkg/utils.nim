@@ -106,10 +106,10 @@ proc joinHostPort*(host: string, port: int): string =
     return fmt"[{host}]:{port}"
   return fmt"{host}:{port}"
 
-proc `%`*[T](opt: Option[T]): JsonTree =
+proc `%`*[T](opt: Option[T]): JsonNode =
   ## Generic constructor for JSON data. Creates a new ``JNull JsonNode``
   ## if ``opt`` is empty, otherwise it delegates to the underlying value.
-  if opt.isSome: %opt.get else: newJNull().JsonTree
+  if opt.isSome: %opt.get else: newJNull()
 
 proc `%`*(obj: tuple): JsonTree =
   ## Generic constructor for JSON data. Creates a new ``JObject JsonNode``.

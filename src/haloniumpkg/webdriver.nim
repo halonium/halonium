@@ -226,8 +226,8 @@ type
 
 proc stop*(session: Session)
 proc quit*(session: Session)
-proc execute(self: WebDriver, command: Command, params: JsonNode = %*{}): JsonNode
-proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode
+proc execute(self: WebDriver, command: Command, params: JsonNode = %*{}): JsonTree
+proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonTree
 proc `%`*(element: Element): JsonNode
 proc clear*(element: Element)
 proc rect*(element: Element): Rect
@@ -308,7 +308,7 @@ proc getConnectionHeaders(self: WebDriver, url: string, keepAlive = false): Http
 
   result = newHttpHeaders(headers)
 
-proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody = newJNull()): JsonNode =
+proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody = newJNull()): JsonTree =
   let headers = self.getConnectionHeaders(url, self.keepAlive)
 
   var bodyString: string
@@ -349,7 +349,7 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody = ne
       return %*{"status": status, "value": response.body}
 
     if not result.hasKey("value"):
-      JsonTree(result)["value"] = newJNull()
+      result["value"] = newJNull()
 
 proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepAlive = true): WebDriver =
   result = WebDriver(
@@ -357,7 +357,7 @@ proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepA
     client: newHttpClient(), keepAlive: keepAlive
   )
 
-proc execute(self: WebDriver, command: Command, params: JsonNode = %*{}): JsonNode =
+proc execute(self: WebDriver, command: Command, params: JsonNode = %*{}): JsonTree =
   var commandInfo: CommandEndpointTuple
   try:
     commandInfo = self.browser.getCommandTuple(command)
@@ -404,7 +404,7 @@ const OssW3CConversion = {
   "platform": "platformName"
 }.toTable
 
-proc toW3CCaps(caps: JsonNode): JsonNode =
+proc toW3CCaps(caps: JsonNode): JsonTree =
   var newCaps = caps.copy
   var alwaysMatch = %*{}
 
@@ -430,7 +430,7 @@ proc getSession(self: WebDriver, kind = RemoteSession, opts: JsonNode = %*{}): S
   }
   var response = self.execute(Command.NewSession, parameters)
   if not response.hasKey("sessionId"):
-    response = response["value"]
+    response = response["value"].copy
 
   let sessionId = response["sessionId"].getStr()
   self.capabilities = response{"value"}
@@ -486,7 +486,7 @@ proc createSession*(
 proc w3c*(self: Session): bool =
   return self.driver.w3c
 
-proc execute(self: Session, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonNode =
+proc execute(self: Session, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonTree =
   var newParams = params.copy
   newParams["sessionId"] = %self.id
   try:
@@ -528,7 +528,7 @@ proc createSession*(
   result = getSession(driver, LocalSession, opts=browserOptions)
   result.service = service
 
-proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonNode =
+proc getSelectorParams(self: Session, selector: string, strategy: LocationStrategy): JsonTree =
   var modifiedSelector = selector
   var modifiedStrategy = strategy
 
@@ -576,25 +576,25 @@ proc findElements*(self: Session, selector: string, strategy = CssSelector): seq
   except NoSuchElementException:
     return @[]
 
-proc executeScript*(self: Session, code: string, args: varargs[JsonNode, `%`]): JsonNode =
+proc executeScript*(self: Session, code: string, args: varargs[JsonNode, `%`]): JsonTree =
   let params = %*{
     "script": code,
     "args": args
   }
   if self.w3c:
-    self.execute(Command.W3CExecuteScript, params)["value"]
+    self.execute(Command.W3CExecuteScript, params)["value"].copy
   else:
-    self.execute(Command.ExecuteScript, params)["value"]
+    self.execute(Command.ExecuteScript, params)["value"].copy
 
-proc executeScriptAsync*(self: Session, code: string, args: varargs[JsonNode, `%`]): JsonNode =
+proc executeScriptAsync*(self: Session, code: string, args: varargs[JsonNode, `%`]): JsonTree =
   let params = %*{
     "script": code,
     "args": args
   }
   if self.w3c:
-    self.execute(Command.W3CExecuteScriptAsync, params)["value"]
+    self.execute(Command.W3CExecuteScriptAsync, params)["value"].copy
   else:
-    self.execute(Command.ExecuteAsyncScript, params)["value"]
+    self.execute(Command.ExecuteAsyncScript, params)["value"].copy
 
 proc takeScreenshotBase64*(self: Session): string =
   self.execute(Command.Screenshot).unwrap
@@ -712,7 +712,7 @@ proc switchToFrame*(self: Session, frame: Element) =
 proc switchToFrame*(self: Session, frameId: int) =
   discard self.execute(Command.SwitchToFrame, %*{"id": frameId})
 
-proc execute*(window: Window, command: Command, params: JsonNode = %*{}): JsonNode =
+proc execute*(window: Window, command: Command, params: JsonNode = %*{}): JsonTree =
   var newParams = params.copy
   newParams["windowHandle"] = %window.handle
   try:
@@ -1420,7 +1420,7 @@ proc clearActions*(chain: ActionChain): ActionChain =
     chain.session.clearActions()
   chain
 
-proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): JsonNode =
+proc actionToJson(chain: ActionChain, action: Action, debugMouseMove = false): JsonTree =
   let isW3C = chain.session.w3c
   case action.ty
   of akKeyUp, akKeyDown:
@@ -1532,7 +1532,7 @@ proc createNewW3CActions(
   pointerActions: seq[Action],
   pointerType = ptMouse,
   debugMouseMove = false
-): JsonNode =
+): JsonTree =
   result = %*{
     "actions": [
       {
@@ -1606,7 +1606,7 @@ proc `%`*(element: Element): JsonNode =
     "element-6066-11e4-a52e-4f735466cecf": element.id
   }
 
-proc execute*(element: Element, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonNode =
+proc execute*(element: Element, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonTree =
   var newParams = params.copy
   newParams["elementId"] = %element.id
   newParams["sessionId"] = %element.session.id
@@ -1864,7 +1864,7 @@ proc chromeIssueMessage*(self: Session): string =
   self.checkChrome
   discard self.execute(Command.GetIssueMessage).unwrap
 
-proc chromeExecuteCDPCommand*(self: Session, cmd: string, args: JsonNode): JsonNode =
+proc chromeExecuteCDPCommand*(self: Session, cmd: string, args: JsonNode): JsonTree =
   self.checkChrome
   discard self.execute(Command.ExecuteCdpCommand, %*{"cmd": cmd, "params": args}).unwrap
 

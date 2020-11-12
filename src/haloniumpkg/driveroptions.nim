@@ -24,8 +24,8 @@ proc chromeOptions*(
   debuggerAddress = none(string),
   pageLoadStrategy = none(PageLoadStrategy),
   experimentalOptions: JsonNode = %*{}
-): JsonNode =
-  var opts = experimentalOptions.copy()
+): JsonTree =
+  var opts = experimentalOptions.copy
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
@@ -48,7 +48,7 @@ proc edgeOptions*(
   pageLoadStrategy = none(PageLoadStrategy),
   isLegacy = false,
   customBrowserName = none(string)
-): JsonNode =
+): JsonTree =
   var opts = %*{}
   opts.assign("args", args)
   if isLegacy:
@@ -63,7 +63,7 @@ proc firefoxOptions*(
   pageLoadStrategy = none(PageLoadStrategy),
   binary = none(string),
   logLevel = none(string)
-): JsonNode =
+): JsonTree =
   ## TODO: Support firefox profile + addons
   var opts = %*{}
   opts.assign("args", args)
@@ -91,9 +91,9 @@ proc ieOptions*(
   usePerProcessProxy = none(bool),
   validateCookieDocumentType = none(bool),
   additionalOptions: JsonNode = %*{}
-): JsonNode =
+): JsonTree =
   ## TODO: Support firefox profile + addons
-  var opts = additionalOptions.copy()
+  var opts = additionalOptions.copy
   opts.assign("ie.browserCommandLineSwitches", args.join(" "))
   opts.assign("browserAttachTimeout", browserAttachTimeout)
   opts.assign("elementScrollBehavior", elementScrollBehavior)
@@ -117,7 +117,7 @@ proc webkitGTKOptions*(
   args: openArray[string] = [],
   binary = none(string),
   overlayScrollbars = none(bool)
-): JsonNode =
+): JsonTree =
   var opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
@@ -128,7 +128,7 @@ proc webkitGTKOptions*(
 proc wpeWebkitOptions*(
   args: openArray[string] = [],
   binary = none(string)
-): JsonNode =
+): JsonTree =
   var opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
@@ -141,7 +141,7 @@ proc operaOptions*(
   androidPackageName = none(string),
   androidDeviceSocket = none(string),
   androidCommandLineFile = none(string)
-): JsonNode =
+): JsonTree =
   var opts = %*{}
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
