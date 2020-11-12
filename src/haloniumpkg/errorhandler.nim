@@ -194,7 +194,7 @@ proc checkResponse*(response: JsonNode) =
     raise exception
 
   exception.msg = message
-  exception.screen = screen.JsonTree
+  exception.screen = screen
   exception.stacktrace = stacktrace
 
   raise exception

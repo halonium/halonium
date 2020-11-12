@@ -18,7 +18,7 @@ type
     keepAlive*: bool
     w3c*: bool
     session: Session
-    capabilities: JsonTree
+    capabilities: JsonNode
 
   SessionKind* = enum
     RemoteSession
@@ -408,7 +408,7 @@ proc toW3CCaps(caps: JsonNode): JsonTree =
   var alwaysMatch = %*{}
 
   if newCaps{"proxy", "proxyType"}.kind != JNull:
-    newCaps{"proxy", "proxyType"} = %newCaps{"proxy", "proxyType"}.getStr().toLowerAscii
+    newCaps["proxy", "proxyType"] = %newCaps{"proxy", "proxyType"}.getStr().toLowerAscii
 
   for (k, v) in newCaps.pairs:
     if v.kind != JNull and v.getStr.len > 0 and OssW3CConversion.hasKey(k):
@@ -432,10 +432,10 @@ proc getSession(self: WebDriver, kind = RemoteSession, opts: JsonNode = %*{}): S
     response = response["value"].JsonTree
 
   let sessionId = response["sessionId"].getStr()
-  self.capabilities = response{"value"}.JsonTree
+  self.capabilities = response{"value"}
 
   if self.capabilities.kind == JNull:
-    self.capabilities = response{"capabilities"}.JsonTree
+    self.capabilities = response{"capabilities"}
   self.w3c = response{"status"}.kind == JNull
 
   result = Session(driver: self, id: sessionId, kind: kind)
