@@ -119,10 +119,10 @@ template createException(status: JsonNode): untyped =
 
 proc checkResponse*(response: JsonNode) =
   var
-    status = response{"status"}.copy
+    status = response{"status"}
     message = response{"message"}.getStr("")
-    screen: JsonTree
-    value: JsonTree
+    screen: JsonNode
+    value: JsonNode
 
   let
     isInt = (status.kind != JNull and status.kind == JInt)
@@ -139,20 +139,20 @@ proc checkResponse*(response: JsonNode) =
         discard
       if value.kind != JNull:
         if value.len == 1:
-          value = value["value"].copy
+          value = value["value"]
 
-        status = value{"error"}.copy
+        status = value{"error"}
         if status.kind == JNull:
-          status = value["status"].copy
+          status = value["status"]
           let nmessage = value["value"]
           if nmessage.kind != JString:
-            value = nmessage.copy
+            value = nmessage
             message = nmessage{"message"}.getStr("")
 
   var exception = createException(status)
 
   if value.kind == JNull or (value.kind == JString and value.getStr("").len == 0):
-    value = response["value"].copy
+    value = response["value"]
   if value.kind == JString:
     exception.msg = value.getStr("")
     raise exception
@@ -160,7 +160,7 @@ proc checkResponse*(response: JsonNode) =
   if message.len == 0 and value.hasKey("message"):
     message = value["message"].getStr("")
 
-  screen = value{"screen"}.copy
+  screen = value{"screen"}
 
   let stValue = if value.hasKey("stackTrace"): value["stackTrace"] else: value{"stacktrace"}
   var stacktrace: seq[string]
@@ -186,15 +186,15 @@ proc checkResponse*(response: JsonNode) =
   if getError(status) == UnexpectedAlertOpen:
     var alertText: string
     if value.hasKey("data"):
-      alertText = value["data"]{"text"}.getStr("")
+      alertText = value{"data", "text"}.getStr("")
     elif value.hasKey("alert"):
-      alertText = value["alert"]{"text"}.getStr("")
+      alertText = value{"alert", "text"}.getStr("")
 
     exception.alertText = alertText
     raise exception
 
   exception.msg = message
-  exception.screen = screen
+  exception.screen = screen.JsonTree
   exception.stacktrace = stacktrace
 
   raise exception

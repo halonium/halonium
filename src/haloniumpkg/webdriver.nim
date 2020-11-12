@@ -261,11 +261,10 @@ proc sourceType(action: Action): SourceType =
     result = stPointer
 
 template unwrap(node: JsonNode, ty: untyped): untyped =
-  let n = node.copy
-  if n.hasKey("value"):
-    n["value"].to(ty)
+  if node.hasKey("value"):
+    node["value"].to(ty)
   else:
-    n.to(ty)
+    node.to(ty)
 
 template unwrap(node: JsonNode): untyped =
   unwrap(node, type(result))
@@ -430,13 +429,13 @@ proc getSession(self: WebDriver, kind = RemoteSession, opts: JsonNode = %*{}): S
   }
   var response = self.execute(Command.NewSession, parameters)
   if not response.hasKey("sessionId"):
-    response = response["value"].copy
+    response = response["value"].JsonTree
 
   let sessionId = response["sessionId"].getStr()
-  self.capabilities = response{"value"}.copy
+  self.capabilities = response{"value"}.JsonTree
 
   if self.capabilities.kind == JNull:
-    self.capabilities = response{"capabilities"}.copy
+    self.capabilities = response{"capabilities"}.JsonTree
   self.w3c = response{"status"}.kind == JNull
 
   result = Session(driver: self, id: sessionId, kind: kind)
@@ -582,9 +581,9 @@ proc executeScript*(self: Session, code: string, args: varargs[JsonNode, `%`]): 
     "args": args
   }
   if self.w3c:
-    self.execute(Command.W3CExecuteScript, params)["value"].copy
+    self.execute(Command.W3CExecuteScript, params)["value"].JsonTree
   else:
-    self.execute(Command.ExecuteScript, params)["value"].copy
+    self.execute(Command.ExecuteScript, params)["value"].JsonTree
 
 proc executeScriptAsync*(self: Session, code: string, args: varargs[JsonNode, `%`]): JsonTree =
   let params = %*{
@@ -592,9 +591,9 @@ proc executeScriptAsync*(self: Session, code: string, args: varargs[JsonNode, `%
     "args": args
   }
   if self.w3c:
-    self.execute(Command.W3CExecuteScriptAsync, params)["value"].copy
+    self.execute(Command.W3CExecuteScriptAsync, params)["value"].JsonTree
   else:
-    self.execute(Command.ExecuteAsyncScript, params)["value"].copy
+    self.execute(Command.ExecuteAsyncScript, params)["value"].JsonTree
 
 proc takeScreenshotBase64*(self: Session): string =
   self.execute(Command.Screenshot).unwrap
