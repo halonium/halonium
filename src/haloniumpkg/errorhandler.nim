@@ -119,10 +119,10 @@ template createException(status: JsonNode): untyped =
 
 proc checkResponse*(response: JsonNode) =
   var
-    status = response{"status"}
+    status = response{"status"}.copy
     message = response{"message"}.getStr("")
-    screen: JsonNode
-    value: JsonNode
+    screen: JsonTree
+    value: JsonTree
 
   let
     isInt = (status.kind != JNull and status.kind == JInt)
@@ -139,20 +139,20 @@ proc checkResponse*(response: JsonNode) =
         discard
       if value.kind != JNull:
         if value.len == 1:
-          value = value["value"]
+          value = value["value"].copy
 
-        status = value{"error"}
+        status = value{"error"}.copy
         if status.kind == JNull:
-          status = value["status"]
+          status = value["status"].copy
           let nmessage = value["value"]
           if nmessage.kind != JString:
-            value = nmessage
+            value = nmessage.copy
             message = nmessage{"message"}.getStr("")
 
   var exception = createException(status)
 
   if value.kind == JNull or (value.kind == JString and value.getStr("").len == 0):
-    value = response["value"]
+    value = response["value"].copy
   if value.kind == JString:
     exception.msg = value.getStr("")
     raise exception
@@ -160,7 +160,7 @@ proc checkResponse*(response: JsonNode) =
   if message.len == 0 and value.hasKey("message"):
     message = value["message"].getStr("")
 
-  screen = value{"screen"}
+  screen = value{"screen"}.copy
 
   let stValue = if value.hasKey("stackTrace"): value["stackTrace"] else: value{"stacktrace"}
   var stacktrace: seq[string]

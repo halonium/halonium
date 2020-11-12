@@ -18,7 +18,7 @@ type
     keepAlive*: bool
     w3c*: bool
     session: Session
-    capabilities: JsonNode
+    capabilities: JsonTree
 
   SessionKind* = enum
     RemoteSession
@@ -433,10 +433,10 @@ proc getSession(self: WebDriver, kind = RemoteSession, opts: JsonNode = %*{}): S
     response = response["value"].copy
 
   let sessionId = response["sessionId"].getStr()
-  self.capabilities = response{"value"}
+  self.capabilities = response{"value"}.copy
 
   if self.capabilities.kind == JNull:
-    self.capabilities = response{"capabilities"}
+    self.capabilities = response{"capabilities"}.copy
   self.w3c = response{"status"}.kind == JNull
 
   result = Session(driver: self, id: sessionId, kind: kind)

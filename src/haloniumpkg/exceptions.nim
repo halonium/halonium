@@ -3,7 +3,7 @@ import packedjson
 type
   WebDriverException* = object of CatchableError
     ## Base webdriver exception
-    screen*: JsonNode
+    screen*: JsonTree
     stacktrace*: seq[string]
     alertText*: string
 
@@ -164,7 +164,7 @@ template newWebDriverException*(
   stcktrace: seq[string] = @[]
 ): untyped =
   var res = newException(exceptn, message, parentException)
-  res.screen = scrn
+  res.screen = scrn.copy
   res.stacktrace = stcktrace
   res
 
@@ -174,4 +174,4 @@ template newWebDriverException*(
   scrn: JsonNode = newJNull(),
   stcktrace: seq[string] = @[]
 ): untyped =
-  newWebDriverException(WebDriverException, message, parentException, scrn, stcktrace)
+  newWebDriverException(WebDriverException, message, parentException, scrn.copy, stcktrace)
