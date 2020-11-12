@@ -4,7 +4,7 @@ import halonium
 proc main() =
   echo "Please enter a file to upload: "
   let file = stdin.readLine()
-  var session = createSession(Chrome, browserOptions=chromeOptions(args=["--headless"]))
+  let session = createSession(Chrome, browserOptions=chromeOptions(args=["--headless"]))
 
   session.navigate("http://demo.guru99.com/test/upload/")
   let element = session.waitForElement("#uploadfile_0").get()
@@ -16,4 +16,5 @@ proc main() =
          .click("#submitbutton")
          .perform()
   echo "Success!"
+
 main()

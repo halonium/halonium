@@ -261,17 +261,16 @@ proc sourceType(action: Action): SourceType =
     result = stPointer
 
 template unwrap(node: JsonNode, ty: untyped): untyped =
-  let n = node.copy
-  if n.hasKey("value"):
-    n["value"].to(ty)
+  if node.hasKey("value"):
+    node["value"].to(ty)
   else:
-    n.to(ty)
+    node.to(ty)
 
 template unwrap(node: JsonNode): untyped =
   unwrap(node, type(result))
 
 proc toElement*(node: JsonNode, session: Session): Element =
-  for key, value in node.getFields().pairs():
+  for key, value in node.pairs():
     return Element(id: value.getStr(), session: session)
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
@@ -312,13 +311,11 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
   let headers = self.getConnectionHeaders(url, self.keepAlive)
 
   var bodyString: string
-
   if not postBody.isNil and httpMethod in {HttpPost, HttpPut}:
     bodyString = $postBody
 
   let
     response = self.client.request(url, httpMethod, bodyString, headers)
-    respData = response.body
   var
     status = response.code.int
 
@@ -327,7 +324,7 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
   if status in Http400.int .. Http500.int:
     return %*{
       "status": status,
-      "value": respData
+      "value": response.body
     }
 
   let contentTypes = response.headers.getOrDefault("Content-Type").split(';')
@@ -339,16 +336,16 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
       break
 
   if isPng:
-    return %*{"status": ErrorCode.Success.int, "value": respData}
+    return %*{"status": ErrorCode.Success.int, "value": response.body}
   else:
     try:
-      result = parseJson(respData.strip())
+      result = parseJson(response.bodyStream)
     except JsonParsingError:
       if status > 199 and status < Http300.int:
         status = ErrorCode.Success.int
       else:
         status = ErrorCode.UnknownError.int
-      return %*{"status": status, "value": respData.strip()}
+      return %*{"status": status, "value": response.body}
 
     if not result.hasKey("value"):
       result["value"] = nil
@@ -368,11 +365,10 @@ proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
 
   let filledUrl = commandInfo[1].replace(params)
 
-  var data = params
+  let data = params.copy
   if self.w3c:
-    for key in params.keys():
-      if key == "sessionId":
-        data.delete(key)
+    if params.hasKey("sessionId"):
+      data.delete("sessionId")
 
   let
     url = fmt"{self.url}{filledUrl}"
@@ -412,7 +408,7 @@ proc toW3CCaps(caps: JsonNode): JsonNode =
   let alwaysMatch = %*{}
 
   if not newCaps{"proxy", "proxyType"}.isNil:
-    newCaps["proxy"]["proxyType"] = %newCaps["proxy"]["proxyType"].getStr().toLowerAscii
+    newCaps{"proxy", "proxyType"} = %newCaps{"proxy", "proxyType"}.getStr().toLowerAscii
 
   for (k, v) in newCaps.pairs:
     if not v.isNil and v.getStr.len > 0 and OssW3CConversion.hasKey(k):
@@ -424,8 +420,8 @@ proc toW3CCaps(caps: JsonNode): JsonNode =
 
 proc getSession(self: WebDriver, kind = RemoteSession, opts = %*{}): Session =
   let capabilities = desiredCapabilities(self.browser)
-  for key in opts.keys():
-    capabilities[key] = opts[key].copy
+  for key, value in opts.pairs():
+    capabilities[key] = value
 
   let parameters = %*{
     "capabilities": capabilities.toW3CCaps,
@@ -490,9 +486,10 @@ proc w3c*(self: Session): bool =
   return self.driver.w3c
 
 proc execute(self: Session, command: Command, params = %*{}, stopOnException = true): JsonNode =
-  params["sessionId"] = %self.id
+  let newParams = params.copy
+  newParams["sessionId"] = %self.id
   try:
-    result = self.driver.execute(command, params)
+    result = self.driver.execute(command, newParams)
   except Exception as exc:
     if stopOnException:
       echo &"Unexpected exception caught while executing command {$command}. Message: {exc.msg}"
@@ -573,7 +570,7 @@ proc findElements*(self: Session, selector: string, strategy = CssSelector): seq
       getSelectorParams(self, selector, strategy),
       stopOnException = false
      )
-    for elementNode in response["value"].to(seq[JsonNode]):
+    for elementNode in response["value"].items:
       result.add(elementNode.toElement(self))
   except NoSuchElementException:
     return @[]
@@ -633,7 +630,7 @@ proc windows*(self: Session): seq[Window] =
 
 proc navigate*(self: Session, url: string) =
   let response = self.execute(Command.Get, %*{"url": %url})
-  if response{"value"}.getFields().len != 0:
+  if response{"value"}.len != 0:
     raise newWebDriverException($response)
 
 proc forward*(self: Session) =
@@ -714,8 +711,8 @@ proc switchToFrame*(self: Session, frame: Element) =
 proc switchToFrame*(self: Session, frameId: int) =
   discard self.execute(Command.SwitchToFrame, %*{"id": frameId})
 
-proc execute*(window: Window, command: Command, params: JsonNode = %*{}): JsonNode =
-  var newParams = params
+proc execute*(window: Window, command: Command, params = %*{}): JsonNode =
+  let newParams = params.copy
   newParams["windowHandle"] = %window.handle
   try:
     result = window.session.execute(command, newParams)
@@ -759,7 +756,7 @@ proc `rect=`*(window: Window, rect: Rect) =
   if not window.session.w3c:
     window.session.stop()
     raise newWebDriverException(UnknownMethodException, "Setting window.rect is only supported on W3C compatible drivers")
-  discard window.execute(Command.SetWindowRect, rect.toJson)
+  discard window.execute(Command.SetWindowRect, %rect)
 
 proc size*(window: Window): tuple[width, height: float] =
   if window.session.w3c:
@@ -779,7 +776,7 @@ proc `size=`*(window: Window, size: tuple[width, height: float]) =
     rect.height = size.height
     window.rect = rect
   else:
-    discard window.execute(Command.SetWindowSize, size.toJson)
+    discard window.execute(Command.SetWindowSize, %size)
 
 proc position*(window: Window): tuple[x, y: float] =
   if window.session.w3c:
@@ -799,7 +796,7 @@ proc `position=`*(window: Window, pos: tuple[x, y: float]) =
     rect.y = pos.y
     window.rect = rect
   else:
-    discard window.execute(Command.SetWindowPosition, pos.toJson)
+    discard window.execute(Command.SetWindowPosition, %pos)
 
 proc maximize*(window: Window) =
   if window.session.w3c:
@@ -1608,8 +1605,8 @@ proc `%`*(element: Element): JsonNode =
     "element-6066-11e4-a52e-4f735466cecf": element.id
   }
 
-proc execute*(element: Element, command: Command, params: JsonNode = %*{}, stopOnException = true): JsonNode =
-  var newParams = params
+proc execute*(element: Element, command: Command, params = %*{}, stopOnException = true): JsonNode =
+  let newParams = params.copy
   newParams["elementId"] = %element.id
   newParams["sessionId"] = %element.session.id
   try:
@@ -1645,7 +1642,7 @@ proc findElements*(element: Element, selector: string, strategy = CssSelector): 
       getSelectorParams(element.session, selector, strategy),
       stopOnException = false
     )
-    for elementNode in response["value"].to(seq[JsonNode]):
+    for elementNode in response["value"].items:
       result.add(elementNode.toElement(element.session))
   except NoSuchElementException:
     return @[]
@@ -1838,7 +1835,7 @@ proc chromeNetworkConditions*(self: Session): NetworkConditions =
 
 proc `chromeNetworkConditions=`*(self: Session, networkConditions: NetworkConditions) =
   self.checkChrome
-  var payload = %*{
+  let payload = %*{
     "offline": networkConditions.offline,
     "latency": networkConditions.latency,
     "download_throughput": networkConditions.downloadThroughput,

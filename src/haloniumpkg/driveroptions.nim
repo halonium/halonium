@@ -25,7 +25,7 @@ proc chromeOptions*(
   pageLoadStrategy = none(PageLoadStrategy),
   experimentalOptions = %*{}
 ): JsonNode =
-  let opts = experimentalOptions.copy()
+  let opts = experimentalOptions.copy
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
@@ -34,7 +34,7 @@ proc chromeOptions*(
   var loadedExtensions = newSeqOfCap[string](extensions.len())
   for ext in extensions:
     let newPath = ext.expandTilde().expandFilename()
-    if newPath.existsFile:
+    if newPath.fileExists:
       loadedExtensions.add(base64.encode(newPath.readFile()))
     else:
       raise newException(IOError, &"Could not find extension at: '{newPath}'")
@@ -50,7 +50,7 @@ proc edgeOptions*(
   customBrowserName = none(string)
 ): JsonNode =
   let opts = %*{}
-  opts["args"] = %args
+  opts.assign("args", args)
   if isLegacy:
     opts.assign("pageLoadStrategy", pageLoadStrategy)
   else:
@@ -93,7 +93,7 @@ proc ieOptions*(
   additionalOptions = %*{}
 ): JsonNode =
   ## TODO: Support firefox profile + addons
-  let opts = additionalOptions.copy()
+  let opts = additionalOptions.copy
   opts.assign("ie.browserCommandLineSwitches", args.join(" "))
   opts.assign("browserAttachTimeout", browserAttachTimeout)
   opts.assign("elementScrollBehavior", elementScrollBehavior)
