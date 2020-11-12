@@ -1,4 +1,4 @@
-import net, strformat, strutils, json, regex, sequtils, strtabs, os
+import net, strformat, strutils, packedjson, regex, sequtils, strtabs, options, os
 import nativesockets
 
 import exceptions
@@ -106,13 +106,12 @@ proc joinHostPort*(host: string, port: int): string =
     return fmt"[{host}]:{port}"
   return fmt"{host}:{port}"
 
-proc toJson*[T, U](vals: openArray[(T, U)]): JsonNode =
-  ## Generic constructor for JSON data. Creates a new ``JObject JsonNode``.
-  result = newJObject()
-  for val in vals:
-    result[$val[0]] = %val[1]
+proc `%`*[T](opt: Option[T]): JsonTree =
+  ## Generic constructor for JSON data. Creates a new ``JNull JsonNode``
+  ## if ``opt`` is empty, otherwise it delegates to the underlying value.
+  if opt.isSome: %opt.get else: newJNull().JsonTree
 
-proc toJson*(obj: object | tuple): JsonNode =
+proc `%`*(obj: tuple): JsonTree =
   ## Generic constructor for JSON data. Creates a new ``JObject JsonNode``.
   result = newJObject()
   for field, val in obj.fieldPairs:

@@ -1,4 +1,4 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, packedjson
 import options
 import tempfile
 
@@ -59,7 +59,7 @@ proc getDriverExe(kind: BrowserKind): string =
     )
 
 # TODO: Make this use Options or something
-proc desiredCapabilities*(kind: BrowserKind): JsonNode =
+proc desiredCapabilities*(kind: BrowserKind): JsonTree =
   case kind
   of Firefox:
     %*{

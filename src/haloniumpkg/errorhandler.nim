@@ -1,4 +1,4 @@
-import exceptions, json, strutils, strformat
+import exceptions, packedjson, strutils, strformat
 
 type
   ErrorCode* = enum
@@ -125,24 +125,24 @@ proc checkResponse*(response: JsonNode) =
     value: JsonNode
 
   let
-    isInt = (not status.isNil and status.kind == JInt)
+    isInt = (status.kind != JNull and status.kind == JInt)
 
-  if status.isNil or (isInt and status.getInt() == ErrorCode.Success.int):
+  if status.kind != JNull or (isInt and status.getInt() == ErrorCode.Success.int):
     return
 
   if isInt:
     let valueJson = response{"value"}
-    if not valueJson.isNil and valueJson.kind == JString:
+    if valueJson.kind != JNull and valueJson.kind == JString:
       try:
         value = parseJson(valueJson.getStr(""))
       except JsonParsingError:
         discard
-      if not value.isNil:
+      if value.kind != JNull:
         if value.len == 1:
           value = value["value"]
 
         status = value{"error"}
-        if status.isNil:
+        if status.kind == JNull:
           status = value["status"]
           let nmessage = value["value"]
           if nmessage.kind != JString:
@@ -151,7 +151,7 @@ proc checkResponse*(response: JsonNode) =
 
   var exception = createException(status)
 
-  if value.isNil or (value.kind == JString and value.getStr("").len == 0):
+  if value.kind == JNull or (value.kind == JString and value.getStr("").len == 0):
     value = response["value"]
   if value.kind == JString:
     exception.msg = value.getStr("")
@@ -165,7 +165,7 @@ proc checkResponse*(response: JsonNode) =
   let stValue = if value.hasKey("stackTrace"): value["stackTrace"] else: value{"stacktrace"}
   var stacktrace: seq[string]
 
-  if not stValue.isNil:
+  if stValue.kind != JNull:
     if stValue.kind == JString:
       stacktrace = stValue.getStr("").split('\n')
     elif stValue.kind == JArray:

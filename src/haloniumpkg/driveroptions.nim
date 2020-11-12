@@ -1,4 +1,4 @@
-import json, options, os, base64, strformat, strutils
+import packedjson, options, os, base64, strformat, strutils
 
 type
   PageLoadStrategy* = enum
@@ -10,7 +10,7 @@ type
     esbTop
     esbBottom
 
-template assign(node: JsonNode, key: string, value: untyped) =
+template assign(node: JsonTree, key: string, value: untyped) =
   when value is Option:
     if value.isSome:
       node[key] = %($value.get)
@@ -23,9 +23,9 @@ proc chromeOptions*(
   binary = none(string),
   debuggerAddress = none(string),
   pageLoadStrategy = none(PageLoadStrategy),
-  experimentalOptions = %*{}
+  experimentalOptions: JsonNode = %*{}
 ): JsonNode =
-  let opts = experimentalOptions.copy()
+  var opts = experimentalOptions.copy()
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
@@ -34,7 +34,7 @@ proc chromeOptions*(
   var loadedExtensions = newSeqOfCap[string](extensions.len())
   for ext in extensions:
     let newPath = ext.expandTilde().expandFilename()
-    if newPath.existsFile:
+    if newPath.fileExists:
       loadedExtensions.add(base64.encode(newPath.readFile()))
     else:
       raise newException(IOError, &"Could not find extension at: '{newPath}'")
@@ -49,8 +49,8 @@ proc edgeOptions*(
   isLegacy = false,
   customBrowserName = none(string)
 ): JsonNode =
-  let opts = %*{}
-  opts["args"] = %args
+  var opts = %*{}
+  opts.assign("args", args)
   if isLegacy:
     opts.assign("pageLoadStrategy", pageLoadStrategy)
   else:
@@ -65,7 +65,7 @@ proc firefoxOptions*(
   logLevel = none(string)
 ): JsonNode =
   ## TODO: Support firefox profile + addons
-  let opts = %*{}
+  var opts = %*{}
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
@@ -90,10 +90,10 @@ proc ieOptions*(
   requireWindowFocus = none(bool),
   usePerProcessProxy = none(bool),
   validateCookieDocumentType = none(bool),
-  additionalOptions = %*{}
+  additionalOptions: JsonNode = %*{}
 ): JsonNode =
   ## TODO: Support firefox profile + addons
-  let opts = additionalOptions.copy()
+  var opts = additionalOptions.copy()
   opts.assign("ie.browserCommandLineSwitches", args.join(" "))
   opts.assign("browserAttachTimeout", browserAttachTimeout)
   opts.assign("elementScrollBehavior", elementScrollBehavior)
@@ -118,7 +118,7 @@ proc webkitGTKOptions*(
   binary = none(string),
   overlayScrollbars = none(bool)
 ): JsonNode =
-  let opts = %*{}
+  var opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
   opts.assign("useOverlayScrollbars", overlayScrollbars)
@@ -129,7 +129,7 @@ proc wpeWebkitOptions*(
   args: openArray[string] = [],
   binary = none(string)
 ): JsonNode =
-  let opts = %*{}
+  var opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
 
@@ -142,7 +142,7 @@ proc operaOptions*(
   androidDeviceSocket = none(string),
   androidCommandLineFile = none(string)
 ): JsonNode =
-  let opts = %*{}
+  var opts = %*{}
   opts.assign("args", args)
   opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("androidPackage", androidPackageName)

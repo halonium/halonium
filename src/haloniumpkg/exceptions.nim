@@ -1,4 +1,4 @@
-import json
+import packedjson
 
 type
   WebDriverException* = object of CatchableError
@@ -160,7 +160,7 @@ template newWebDriverException*(
   exceptn: typedesc = WebDriverException,
   message: string = "",
   parentException: ref Exception = nil,
-  scrn: JsonNode = nil,
+  scrn: JsonNode = newJNull(),
   stcktrace: seq[string] = @[]
 ): untyped =
   var res = newException(exceptn, message, parentException)
@@ -171,7 +171,7 @@ template newWebDriverException*(
 template newWebDriverException*(
   message: string = "",
   parentException: ref Exception = nil,
-  scrn: JsonNode = nil,
+  scrn: JsonNode = newJNull(),
   stcktrace: seq[string] = @[]
 ): untyped =
   newWebDriverException(WebDriverException, message, parentException, scrn, stcktrace)
