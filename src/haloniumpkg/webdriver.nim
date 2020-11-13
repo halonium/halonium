@@ -427,9 +427,9 @@ proc getSession(self: WebDriver, kind = RemoteSession, opts: JsonNode = %*{}): S
     "capabilities": capabilities.toW3CCaps,
     "desiredCapabilities": capabilities
   }
-  var response = self.execute(Command.NewSession, parameters)
+  var response: JsonNode = self.execute(Command.NewSession, parameters)
   if not response.hasKey("sessionId"):
-    response = response["value"].JsonTree
+    response = response["value"]
 
   let sessionId = response["sessionId"].getStr()
   self.capabilities = response{"value"}
