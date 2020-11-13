@@ -317,13 +317,13 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
   let
     response = self.client.request(url, httpMethod, bodyString, headers)
   var
-    status = response.code.int
+    status = response.code
 
-  if status in Http300.int ..< Http304.int:
+  if status in {Http300 .. Http304.pred}:
     return self.request(HttpGet, response.headers["location"])
-  if status in Http400.int .. Http500.int:
+  if status in {Http400 .. Http500}:
     return %*{
-      "status": status,
+      "status": status.int,
       "value": response.body
     }
 
@@ -341,11 +341,12 @@ proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: Jso
     try:
       result = parseJson(response.bodyStream)
     except JsonParsingError:
-      if status > 199 and status < Http300.int:
-        status = ErrorCode.Success.int
+      var error: int
+      if status in {Http200..Http300.pred}:
+        error = ErrorCode.Success.int
       else:
-        status = ErrorCode.UnknownError.int
-      return %*{"status": status, "value": response.body}
+        error = ErrorCode.UnknownError.int
+      return %*{"status": error, "value": response.body}
 
     if not result.hasKey("value"):
       result["value"] = nil
