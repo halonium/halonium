@@ -250,7 +250,6 @@ proc stop*(service: Service) =
 
   try:
     service.process.close()
-    joinThread(backgroundThread)
     service.process.terminate()
     discard service.process.waitForExit(1)
     service.process.kill()
