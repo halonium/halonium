@@ -421,7 +421,7 @@ proc toW3CCaps(caps: JsonNode): JsonNode =
 proc getSession(self: WebDriver, kind = RemoteSession, opts = %*{}): Session =
   let capabilities = desiredCapabilities(self.browser)
   for key, value in opts.pairs():
-    capabilities[key] = value
+    capabilities[key] = value.copy
 
   let parameters = %*{
     "capabilities": capabilities.toW3CCaps,
