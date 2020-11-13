@@ -1835,7 +1835,7 @@ proc chromeNetworkConditions*(self: Session): NetworkConditions =
 
 proc `chromeNetworkConditions=`*(self: Session, networkConditions: NetworkConditions) =
   self.checkChrome
-  var payload = %*{
+  let payload = %*{
     "offline": networkConditions.offline,
     "latency": networkConditions.latency,
     "download_throughput": networkConditions.downloadThroughput,
