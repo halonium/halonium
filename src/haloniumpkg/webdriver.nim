@@ -1,6 +1,7 @@
 # For reference, this is brilliant: https://github.com/jlipps/simple-wd-spec
 
 import os, httpclient, uri, packedjson, options, strutils, sequtils, base64, strformat, tables
+import packedjson/deserialiser
 import base64, sets
 import unicode except strip
 
