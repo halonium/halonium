@@ -186,9 +186,9 @@ proc checkResponse*(response: JsonNode) =
   if getError(status) == UnexpectedAlertOpen:
     var alertText: string
     if value.hasKey("data"):
-      alertText = value["data"]{"text"}.getStr("")
+      alertText = value{"data", "text"}.getStr("")
     elif value.hasKey("alert"):
-      alertText = value["alert"]{"text"}.getStr("")
+      alertText = value{"alert", "text"}.getStr("")
 
     exception.alertText = alertText
     raise exception

@@ -2,7 +2,7 @@ import options, os
 import halonium
 
 proc main() =
-  var session = createSession(Chrome)
+  let session = createSession(Chrome)
   session.navigate("https://google.com")
 
   let searchBar = "input[title=\"Search\"]"
