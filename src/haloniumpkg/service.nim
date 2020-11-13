@@ -1,4 +1,4 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, strutils, tables, json
 import options
 import tempfile
 
@@ -31,6 +31,8 @@ type
     host: string
     startupMessage*: string
     process: Process
+
+var backgroundThread: Thread[Service]
 
 proc getDriverExe(kind: BrowserKind): string =
   case kind
@@ -248,13 +250,14 @@ proc stop*(service: Service) =
 
   try:
     service.process.close()
+    joinThread(backgroundThread)
     service.process.terminate()
     discard service.process.waitForExit(1)
     service.process.kill()
   except OSError:
     discard
 
-proc watchOutput(service: Service) =
+proc watchOutput(service: Service) {.thread.} =
   let stream = service.process.outputStream
 
   try:
@@ -329,4 +332,4 @@ proc start*(service: Service) =
     sleep(SERVICE_CHECK_INTERVAL)
     if count >= SERVICE_RETRY_LIMIT:
       raise newWebDriverException(fmt"Cannot connect to service {service.path}. \l{service.process.outputStream.readAll}")
-  spawn service.watchOutput()
+  createThread(backgroundThread, watchOutput, service)
