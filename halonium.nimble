@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.1"
+version       = "0.2.2"
 author        = "Joey Yakimowich-Payne"
 description   = "A browser automation library written in Nim"
 license       = "MIT"

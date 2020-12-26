@@ -23,11 +23,11 @@ proc chromeOptions*(
   binary = none(string),
   debuggerAddress = none(string),
   pageLoadStrategy = none(PageLoadStrategy),
-  experimentalOptions = %*{}
+  experimentalOptions = %*{},
+  additionalCapabilities = %*{}
 ): JsonNode =
   let opts = experimentalOptions.copy
   opts.assign("args", args)
-  opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
   opts.assign("debuggerAddress", debuggerAddress)
 
@@ -41,37 +41,49 @@ proc chromeOptions*(
 
   opts.assign("extensions", loadedExtensions)
 
-  result = %*{"goog:chromeOptions": opts}
+  result = additionalCapabilities.copy
+  result.assign("goog:chromeOptions", opts)
+  result.assign("pageLoadStrategy", pageLoadStrategy)
 
 proc edgeOptions*(
   args: openArray[string] = [],
-  pageLoadStrategy = none(PageLoadStrategy),
-  isLegacy = false,
-  customBrowserName = none(string)
+  extensions: openArray[string] = [],
+  binary = none(string),
+  debuggerAddress = none(string),
+  pageLoadStrategy = option(plsNormal),
+  experimentalOptions = %*{},
+  useChromium = false,
+  additionalCapabilities = %*{}
 ): JsonNode =
-  let opts = %*{}
-  opts.assign("args", args)
-  if isLegacy:
-    opts.assign("pageLoadStrategy", pageLoadStrategy)
+  if useChromium:
+    result = chromeOptions(
+      args, extensions, binary, debuggerAddress, pageLoadStrategy,
+      experimentalOptions, additionalCapabilities
+    )
   else:
-    opts.assign("browserName", customBrowserName)
+    result = additionalCapabilities.copy
+    result.assign("platform", "windows")
 
-  result = %*{"ms:edgeOptions": opts}
+  result.assign("ms:edgeChromium", useChromium)
 
 proc firefoxOptions*(
   args: openArray[string] = [],
-  pageLoadStrategy = none(PageLoadStrategy),
+  pageLoadStrategy = option(plsNormal),
   binary = none(string),
-  logLevel = none(string)
+  acceptInsecureCerts = none(bool),
+  logLevel = none(string),
+  additionalCapabilities = %*{}
 ): JsonNode =
   ## TODO: Support firefox profile + addons
   let opts = %*{}
   opts.assign("args", args)
-  opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("binary", binary)
   opts.assign("log", %*{"level": logLevel})
 
-  result = %*{"moz:firefoxOptions": opts}
+  result = additionalCapabilities.copy
+  result.assign("moz:firefoxOptions", opts)
+  result.assign("pageLoadStrategy", pageLoadStrategy)
+  result.assign("acceptInsecureCerts", acceptInsecureCerts)
 
 proc ieOptions*(
   args: openArray[string] = [],
@@ -116,37 +128,45 @@ proc ieOptions*(
 proc webkitGTKOptions*(
   args: openArray[string] = [],
   binary = none(string),
-  overlayScrollbars = none(bool)
+  pageLoadStrategy = option(plsNormal),
+  overlayScrollbars = none(bool),
+  additionalCapabilities = %*{}
 ): JsonNode =
   let opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
   opts.assign("useOverlayScrollbars", overlayScrollbars)
 
-  result = %*{"webkitgtk:browserOptions": opts}
+  result = additionalCapabilities.copy
+  result.assign("webkitgtk:browserOptions", opts)
+  result.assign("pageLoadStrategy", pageLoadStrategy)
 
 proc wpeWebkitOptions*(
   args: openArray[string] = [],
-  binary = none(string)
+  binary = none(string),
+  additionalCapabilities = %*{}
 ): JsonNode =
   let opts = %*{}
   opts.assign("args", args)
   opts.assign("binary", binary)
 
-  result = %*{"wpe:browserOptions": opts}
+  result = additionalCapabilities.copy
+  result.assign("wpe:browserOptions", opts)
 
 proc operaOptions*(
   args: openArray[string] = [],
-  pageLoadStrategy = none(PageLoadStrategy),
+  pageLoadStrategy = option(plsNormal),
   androidPackageName = none(string),
   androidDeviceSocket = none(string),
-  androidCommandLineFile = none(string)
+  androidCommandLineFile = none(string),
+  additionalCapabilities = %*{}
 ): JsonNode =
   let opts = %*{}
   opts.assign("args", args)
-  opts.assign("pageLoadStrategy", pageLoadStrategy)
   opts.assign("androidPackage", androidPackageName)
   opts.assign("androidDeviceSocket", androidDeviceSocket)
   opts.assign("androidCommandLineFile", androidCommandLineFile)
 
-  result = %*{"operaOptions": opts}
+  result = additionalCapabilities.copy
+  result.assign("pageLoadStrategy", pageLoadStrategy)
+  result.assign("operaOptions", opts)
