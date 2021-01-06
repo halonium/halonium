@@ -285,13 +285,14 @@ proc getDriverUri(kind: BrowserKind, url: string): Uri =
 
 ########################################## WEBDRIVER PROCS ####################################
 
-proc getConnectionHeaders(self: WebDriver, url: string, keepAlive = false): HttpHeaders =
+proc getConnectionHeaders(self: WebDriver, url: string, content: string, keepAlive = false): HttpHeaders =
   let uri = parseUri(url)
   let haloniumVersion = "0.1.0"
   var headers = @{
     "Accept": "application/json",
     "Content-Type": "application/json;charset=UTF-8",
-    "User-Agent": fmt"halonium/{haloniumVersion} (nim {hostOs})"
+    "User-Agent": fmt"halonium/{haloniumVersion} (nim {hostOs})",
+    "Content-Length": $content.len
   }
 
   if uri.username.len > 0:
@@ -308,11 +309,11 @@ proc getConnectionHeaders(self: WebDriver, url: string, keepAlive = false): Http
   result = newHttpHeaders(headers)
 
 proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: JsonNode = nil): JsonNode =
-  let headers = self.getConnectionHeaders(url, self.keepAlive)
-
   var bodyString: string
   if not postBody.isNil and httpMethod in {HttpPost, HttpPut}:
     bodyString = $postBody
+
+  let headers = self.getConnectionHeaders(url, bodyString, self.keepAlive)
 
   let
     response = self.client.request(url, httpMethod, bodyString, headers)
