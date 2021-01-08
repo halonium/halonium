@@ -2,10 +2,10 @@ import options, os
 import halonium
 
 proc main() =
-  let session = createSession(Chrome)
+  let session = createSession(Firefox)
   session.navigate("https://google.com")
 
-  let searchBar = "input[title=\"Search\"]"
+  let searchBar = "input[title=\"Αναζήτηση\"]"
   let element = session.waitForElement(searchBar).get()
 
   element.sendKeys("clowns", Key.Enter)

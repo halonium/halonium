@@ -1,8 +1,8 @@
-import tables, httpcore, sequtils
+import httpcore, sequtils
 
 type
   CommandEndpointTuple* = tuple[httpMethod: HttpMethod, endpoint: string]
-  CommandTable* = Table[Command, CommandEndpointTuple]
+  CommandTable* = seq[(Command, CommandEndpointTuple)]
   Command* {.pure.} = enum
     Status = "status"
     NewSession = "newSession"
@@ -181,7 +181,7 @@ const elementIdPath = "/element/" & elementId
 const windowHandlePath = "/window/$windowHandle"
 const nameTag = "$name"
 
-const BasicCommands = @{
+const BasicCommands* = @{
   Command.Status: (HttpGet, "/status"),
   Command.NewSession: (HttpPost, "/session"),
   Command.GetAllSessions: (HttpGet, "/sessions"),
@@ -305,7 +305,7 @@ const BasicCommands = @{
   Command.MinimizeWindow: (HttpPost, sessionIdPath & "/window/minimize")
 }
 
-const FirefoxCommands = BasicCommands.concat(
+const FirefoxCommands* = BasicCommands.concat(
   @{
     Command.GetContext: (HttpGet, sessionIdPath & "/moz/context"),
     Command.SetContext: (HttpPost, sessionIdPath & "/moz/context"),
@@ -317,7 +317,7 @@ const FirefoxCommands = BasicCommands.concat(
   }
 )
 
-const SafariCommands = BasicCommands.concat(
+const SafariCommands* = BasicCommands.concat(
   @{
     Command.GetPermissions: (HttpGet, sessionIdPath & "/apple/permissions"),
     Command.SetPermissions: (HttpPost, sessionIdPath & "/apple/permissions"),
@@ -325,7 +325,7 @@ const SafariCommands = BasicCommands.concat(
   }
 )
 
-const ChromiumCommands = BasicCommands.concat(
+const ChromiumCommands* = BasicCommands.concat(
   @{
     Command.LaunchApp: (HttpPost, sessionIdPath & "/chromium/launch_app"),
     Command.SetNetworkConditions: (HttpPost, sessionIdPath & "/chromium/network_conditions"),
@@ -338,8 +338,3 @@ const ChromiumCommands = BasicCommands.concat(
     Command.StopCasting: (HttpPost, sessionIdPath & "/goog/cast/stop_casting")
   }
 )
-
-const BaseCommandTable*: CommandTable = BasicCommands.toTable
-const FirefoxCommandTable*: CommandTable = FirefoxCommands.toTable
-const SafariCommandTable*: CommandTable = SafariCommands.toTable
-const ChromiumCommandTable*: CommandTable = ChromiumCommands.toTable

@@ -5,6 +5,7 @@ import base64, sets
 import unicode except strip
 
 import zip / zipfiles
+import fusion / astdsl, macros
 import uuids, tempfile
 import exceptions, service, errorhandler, commands, utils, browser
 
@@ -357,27 +358,40 @@ proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepA
     client: newHttpClient(), keepAlive: keepAlive
   )
 
+template inner(session, httpMethod, endpoint, params, data) =
+  let url = $self.url & endpoint.replace(params)
+  let response = self.request(httpMethod, url, data)
+  if not response.isNil:
+    checkResponse(response)
+    return response
+
+template raiseWrongCommand(command) =
+  raise newWebDriverException("Command '" & $command & "' could not be found.")
+
+macro cases(self: WebDriver, command: Command, params, data: JsonNode;
+    table: static[CommandTable]): untyped =
+  result = buildAst caseStmt(command):
+    for x in table:
+      ofBranch(newLit(x[0])):
+        getAst(inner(self, newLit(x[1][0]), newLit(x[1][1]), params, data))
+    `else`:
+      getAst(raiseWrongCommand(command))
+
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
-  var commandInfo: CommandEndpointTuple
-  try:
-    commandInfo = self.browser.getCommandTuple(command)
-  except:
-    raise newWebDriverException(fmt"Command '{$command}' could not be found.")
-
-  let filledUrl = commandInfo[1].replace(params)
-
   let data = params.copy
   if self.w3c:
     if params.hasKey("sessionId"):
       data.delete("sessionId")
 
-  let
-    url = fmt"{self.url}{filledUrl}"
-
-  let response = self.request(commandInfo[0], url, data)
-  if not response.isNil:
-    checkResponse(response)
-    return response
+  case self.browser
+  of Firefox:
+    cases(self, command, params, data, FirefoxCommands)
+  of Chrome, Chromium:
+    cases(self, command, params, data, ChromiumCommands)
+  of Safari:
+    cases(self, command, params, data, SafariCommands)
+  else:
+    cases(self, command, params, data, BasicCommands)
 
   return %*{
     "success": Success.int,

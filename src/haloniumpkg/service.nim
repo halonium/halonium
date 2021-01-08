@@ -1,8 +1,8 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, json
 import options
 import tempfile
 
-import utils, exceptions, commands, browser
+import utils, exceptions, browser
 
 when defined(windows):
   import winlean
@@ -189,20 +189,6 @@ proc commandLineArgs(service: Service): seq[string] =
       result.add(fmt"--cookies-file={mktempUnsafe()}")
   else:
     result = service.args
-
-proc getCommandTuple*(kind: BrowserKind, command: Command): CommandEndpointTuple =
-  case kind
-  of Firefox:
-    FirefoxCommandTable[command]
-  of Chrome, Chromium:
-    ChromiumCommandTable[command]
-  of Safari:
-    SafariCommandTable[command]
-  else:
-    BaseCommandTable[command]
-
-proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple =
-  return getCommandTuple(service.kind, command)
 
 proc url*(service: Service): string =
   ## Returns the url that the service is running at
