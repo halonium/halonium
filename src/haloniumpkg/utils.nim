@@ -1,4 +1,4 @@
-import net, strformat, strutils, json, regex, sequtils, strtabs, os
+import net, strformat, strutils, json, strtabs, os
 import nativesockets
 
 import exceptions
@@ -113,20 +113,19 @@ proc `%`*(obj: tuple): JsonNode =
     result[field] = %val
 
 proc replace*(str: string, node: JsonNode): string =
-  let matches = str.findAll(re"\$(\w+)")
-  let keys = matches.mapIt(str[it.group(0)[0]])
-
-  var vals: seq[(string, string)]
-
-  for key in keys:
-    if not node.hasKey(key):
-      raise newException(URLTemplateException, fmt"Key '{key}' not found in JsonData")
-    if node[key].kind != JString:
-      raise newException(URLTemplateException, fmt"Key '{key}' is not a string")
-
-    vals.add(("$" & key, node[key].getStr()))
-
-  result = str.multiReplace(vals)
+  var keyVals: seq[(string, string)]
+  var isKey = false
+  for x in tokenize(str, {'$', '/'}):
+    if x.isSep and x.token.endsWith('$'):
+      isKey = true
+    elif isKey and not x.isSep:
+      isKey = false
+      if not node.hasKey(x.token):
+        raise newException(URLTemplateException, fmt"Key '{x.token}' not found in JsonData")
+      if node[x.token].kind != JString:
+        raise newException(URLTemplateException, fmt"Key '{x.token}' is not a string")
+      keyVals.add(("$" & x.token, node[x.token].getStr()))
+  result = str.multiReplace(keyVals)
 
 proc getDevNull*(): string =
   when defined(windows):
