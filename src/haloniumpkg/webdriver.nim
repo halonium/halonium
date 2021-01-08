@@ -286,13 +286,14 @@ proc getDriverUri(kind: BrowserKind, url: string): Uri =
 
 ########################################## WEBDRIVER PROCS ####################################
 
-proc getConnectionHeaders(self: WebDriver, url: string, keepAlive = false): HttpHeaders =
+proc getConnectionHeaders(self: WebDriver, url: string, content: string, keepAlive = false): HttpHeaders =
   let uri = parseUri(url)
   let haloniumVersion = "0.1.0"
   var headers = @{
     "Accept": "application/json",
     "Content-Type": "application/json;charset=UTF-8",
-    "User-Agent": fmt"halonium/{haloniumVersion} (nim {hostOs})"
+    "User-Agent": fmt"halonium/{haloniumVersion} (nim {hostOs})",
+    "Content-Length": $content.len
   }
 
   if uri.username.len > 0:
@@ -309,11 +310,11 @@ proc getConnectionHeaders(self: WebDriver, url: string, keepAlive = false): Http
   result = newHttpHeaders(headers)
 
 proc request(self: WebDriver, httpMethod: HttpMethod, url: string, postBody: JsonNode = nil): JsonNode =
-  let headers = self.getConnectionHeaders(url, self.keepAlive)
-
   var bodyString: string
   if not postBody.isNil and httpMethod in {HttpPost, HttpPut}:
     bodyString = $postBody
+
+  let headers = self.getConnectionHeaders(url, bodyString, self.keepAlive)
 
   let
     response = self.client.request(url, httpMethod, bodyString, headers)
@@ -358,18 +359,18 @@ proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepA
     client: newHttpClient(), keepAlive: keepAlive
   )
 
-template inner(session, httpMethod, endpoint, params, data) =
-  let url = $self.url & endpoint.replace(params)
-  let response = self.request(httpMethod, url, data)
-  if not response.isNil:
-    checkResponse(response)
-    return response
-
-template raiseWrongCommand(command) =
-  raise newWebDriverException("Command '" & $command & "' could not be found.")
-
-macro cases(self: WebDriver, command: Command, params, data: JsonNode;
+macro genCommands(self: WebDriver, command: Command, params, data: JsonNode;
     table: static[CommandTable]): untyped =
+  template inner(session, httpMethod, endpoint, params, data) =
+    let url = $self.url & endpoint.replace(params)
+    let response = self.request(httpMethod, url, data)
+    if not response.isNil:
+      checkResponse(response)
+      return response
+
+  template raiseWrongCommand(command) =
+    raise newWebDriverException("Command '" & $command & "' could not be found.")
+
   result = buildAst caseStmt(command):
     for x in table:
       ofBranch(newLit(x[0])):
@@ -385,13 +386,13 @@ proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
 
   case self.browser
   of Firefox:
-    cases(self, command, params, data, FirefoxCommands)
+    genCommands(self, command, params, data, FirefoxCommands)
   of Chrome, Chromium:
-    cases(self, command, params, data, ChromiumCommands)
+    genCommands(self, command, params, data, ChromiumCommands)
   of Safari:
-    cases(self, command, params, data, SafariCommands)
+    genCommands(self, command, params, data, SafariCommands)
   else:
-    cases(self, command, params, data, BasicCommands)
+    genCommands(self, command, params, data, BasicCommands)
 
   return %*{
     "success": Success.int,
