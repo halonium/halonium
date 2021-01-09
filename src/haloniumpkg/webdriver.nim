@@ -359,12 +359,7 @@ proc newRemoteWebDriver*(kind: BrowserKind, url = "http://localhost:4444", keepA
   )
 
 proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
-  var commandInfo: CommandEndpointTuple
-  try:
-    commandInfo = self.browser.getCommandTuple(command)
-  except:
-    raise newWebDriverException(fmt"Command '{$command}' could not be found.")
-
+  let commandInfo = self.browser.getCommandTuple(command)
   let filledUrl = commandInfo[1].replace(params)
 
   let data = params.copy
@@ -372,9 +367,7 @@ proc execute(self: WebDriver, command: Command, params = %*{}): JsonNode =
     if params.hasKey("sessionId"):
       data.delete("sessionId")
 
-  let
-    url = fmt"{self.url}{filledUrl}"
-
+  let url = $self.url & filledUrl
   let response = self.request(commandInfo[0], url, data)
   if not response.isNil:
     checkResponse(response)
