@@ -1,5 +1,5 @@
-import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, tables, json
-import options
+import osproc, os, streams, strformat, sequtils, strtabs, httpclient, threadpool, strutils, json, options
+import macros, fusion / astdsl
 import tempfile
 
 import utils, exceptions, commands, browser
@@ -190,19 +190,34 @@ proc commandLineArgs(service: Service): seq[string] =
   else:
     result = service.args
 
+macro genCommands(command: Command, table: static[CommandTable]): untyped =
+  template raiseWrongCommand(command) =
+    raise newWebDriverException("Command '" & $command & "' could not be found.")
+
+  result = buildAst(stmtListExpr):
+    let tmp = genSym(nskVar, "minResult")
+    varSection(identDefs(tmp, bindSym"CommandEndpointTuple", empty()))
+    caseStmt(command):
+      for x in table:
+        ofBranch(newLit(x[0])):
+          asgn(tmp, newLit(x[1]))
+      `else`:
+        getAst(raiseWrongCommand(command))
+    tmp
+
 proc getCommandTuple*(kind: BrowserKind, command: Command): CommandEndpointTuple =
   case kind
   of Firefox:
-    FirefoxCommandTable[command]
+    genCommands(command, FirefoxCommands)
   of Chrome, Chromium:
-    ChromiumCommandTable[command]
+    genCommands(command, ChromiumCommands)
   of Safari:
-    SafariCommandTable[command]
+    genCommands(command, SafariCommands)
   else:
-    BaseCommandTable[command]
+    genCommands(command, BasicCommands)
 
 proc getCommandTuple*(service: Service, command: Command): CommandEndpointTuple =
-  return getCommandTuple(service.kind, command)
+  result = getCommandTuple(service.kind, command)
 
 proc url*(service: Service): string =
   ## Returns the url that the service is running at
