@@ -455,7 +455,7 @@ proc createSession*(
   logPath = getDevNull(),
   logLevel = "",
   browserOptions = %*{},
-  hideChromeDriverConsole = false
+  hideDriverConsoleWindow = false
 ): Session =
   ## Creates a session from an existing WebDriver instance
   ##
@@ -473,7 +473,7 @@ proc createSession*(
   result = getSession(self, LocalSession, opts=browserOptions)
   result.service = newService(
     self.browser, driverExePath, port, env,
-    args, logPath, logLevel=logLevel, hideChromeDriverConsole=hideChromeDriverConsole
+    args, logPath, logLevel=logLevel, hideDriverConsoleWindow=hideDriverConsoleWindow
   )
 
   self.url = result.service.url.parseUri()
@@ -508,7 +508,7 @@ proc createSession*(
   logPath = getDevNull(),
   logLevel = "",
   browserOptions = %*{},
-  hideChromeDriverConsole = false
+  hideDriverConsoleWindow = false
 ): Session =
   ## Creates a session and starts a webdriver instance
   ##
@@ -523,7 +523,7 @@ proc createSession*(
   ##                    generated using the procs in driveroptions.nim
   let service = newService(
     browser, driverExePath, port, env, args, logPath, logLevel=logLevel,
-    hideChromeDriverConsole=hideChromeDriverConsole
+    hideDriverConsoleWindow=hideDriverConsoleWindow
   )
   service.start()
   let driver = newRemoteWebDriver(browser, service.url, keepAlive=true)

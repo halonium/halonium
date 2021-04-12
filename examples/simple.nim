@@ -3,9 +3,9 @@ import halonium
 
 proc main() =
 
-  # hideChromeDriverConsole and headless give a completely background execution on Windows
+  # hideDriverConsoleWindow and headless give a completely background execution on Windows
   let session = createSession(
-    Chrome, browserOptions=chromeOptions(args=["--headless"]), hideChromeDriverConsole=true
+    Chrome, browserOptions=chromeOptions(args=["--headless"]), hideDriverConsoleWindow=true
   )
   session.navigate("https://google.com")
 

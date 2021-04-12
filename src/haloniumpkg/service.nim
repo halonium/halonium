@@ -31,7 +31,7 @@ type
     host: string
     startupMessage*: string
     process: Process
-    hideChromeDriverConsole: bool
+    hideDriverConsoleWindow: bool
 
 proc getDriverExe(kind: BrowserKind): string =
   case kind
@@ -141,7 +141,7 @@ proc newService*(
   logPath=getDevNull(),
   startupMessage="",
   logLevel="",
-  hideChromeDriverConsole=false
+  hideDriverConsoleWindow=false
 ): Service =
   result = Service(
     kind: kind,
@@ -152,7 +152,7 @@ proc newService*(
     args: args,
     logPath: logPath,
     startupMessage: if startupMessage.len > 0: startupMessage else: getStartupMessage(kind),
-    hideChromeDriverConsole: hideChromeDriverConsole
+    hideDriverConsoleWindow: hideDriverConsoleWindow
   )
 
   if kind in {InternetExplorer, Firefox}:
@@ -311,14 +311,14 @@ proc start*(service: Service) =
       logPath="/my/log/path",
       startupMessage="This is a custom chrome driver",
       logLevel="ALL",
-      hideChromeDriverConsole=true
+      hideDriverConsoleWindow=true
     )
 
     service2.start()
 
   var options: set[ProcessOption]
 
-  if service.hideChromeDriverConsole:
+  if service.hideDriverConsoleWindow:
     options={
       poUsePath,
       poStdErrToStdOut,
