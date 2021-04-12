@@ -454,7 +454,8 @@ proc createSession*(
   args = newSeq[string](),
   logPath = getDevNull(),
   logLevel = "",
-  browserOptions = %*{}
+  browserOptions = %*{},
+  hideChromeDriverConsole = false
 ): Session =
   ## Creates a session from an existing WebDriver instance
   ##
@@ -470,7 +471,10 @@ proc createSession*(
     let driver = newRemoteWebDriver(Firefox, url = "http://localhost:4444")
     let session = driver.createSession(driverExePath="customgeckodriver", port=4444, browserOptions=firefoxOptions(args=["--headless"]))
   result = getSession(self, LocalSession, opts=browserOptions)
-  result.service = newService(self.browser, driverExePath, port, env, args, logPath, logLevel=logLevel)
+  result.service = newService(
+    self.browser, driverExePath, port, env,
+    args, logPath, logLevel=logLevel, hideChromeDriverConsole=hideChromeDriverConsole
+  )
 
   self.url = result.service.url.parseUri()
   result.service.start()
@@ -503,7 +507,8 @@ proc createSession*(
   args = newSeq[string](),
   logPath = getDevNull(),
   logLevel = "",
-  browserOptions = %*{}
+  browserOptions = %*{},
+  hideChromeDriverConsole = false
 ): Session =
   ## Creates a session and starts a webdriver instance
   ##
@@ -516,7 +521,10 @@ proc createSession*(
   ## ``logPath``: The path to log messages from the driver to
   ## ``browserOptions``: A JsonNode representing arguments to send to the browser. Options can be
   ##                    generated using the procs in driveroptions.nim
-  let service = newService(browser, driverExePath, port, env, args, logPath, logLevel=logLevel)
+  let service = newService(
+    browser, driverExePath, port, env, args, logPath, logLevel=logLevel,
+    hideChromeDriverConsole=hideChromeDriverConsole
+  )
   service.start()
   let driver = newRemoteWebDriver(browser, service.url, keepAlive=true)
   result = getSession(driver, LocalSession, opts=browserOptions)

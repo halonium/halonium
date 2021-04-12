@@ -2,7 +2,11 @@ import options, os
 import halonium
 
 proc main() =
-  let session = createSession(Chrome, browserOptions=chromeOptions(args=["--headless"]))
+
+  # hideChromeDriverConsole and headless give a completely background execution on Windows
+  let session = createSession(
+    Chrome, browserOptions=chromeOptions(args=["--headless"]), hideChromeDriverConsole=true
+  )
   session.navigate("https://google.com")
 
   let searchBar = "input[title=\"Search\"]"

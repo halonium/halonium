@@ -31,6 +31,7 @@ type
     host: string
     startupMessage*: string
     process: Process
+    hideChromeDriverConsole: bool
 
 proc getDriverExe(kind: BrowserKind): string =
   case kind
@@ -139,7 +140,8 @@ proc newService*(
   args=newSeq[string](),
   logPath=getDevNull(),
   startupMessage="",
-  logLevel=""
+  logLevel="",
+  hideChromeDriverConsole=false
 ): Service =
   result = Service(
     kind: kind,
@@ -149,7 +151,8 @@ proc newService*(
     host: "127.0.0.1",
     args: args,
     logPath: logPath,
-    startupMessage: if startupMessage.len > 0: startupMessage else: getStartupMessage(kind)
+    startupMessage: if startupMessage.len > 0: startupMessage else: getStartupMessage(kind),
+    hideChromeDriverConsole: hideChromeDriverConsole
   )
 
   if kind in {InternetExplorer, Firefox}:
@@ -307,20 +310,32 @@ proc start*(service: Service) =
       args=@["--verbose", "--adb-port", "8980"],
       logPath="/my/log/path",
       startupMessage="This is a custom chrome driver",
-      logLevel="ALL"
+      logLevel="ALL",
+      hideChromeDriverConsole=true
     )
 
     service2.start()
+
+  var options: set[ProcessOption]
+
+  if service.hideChromeDriverConsole:
+    options={
+      poUsePath,
+      poStdErrToStdOut,
+      poDaemon
+    }
+  else:
+    options={
+      poUsePath,
+      poStdErrToStdOut
+    }
 
   try:
     service.process = startProcess(
       service.path,
       args=service.commandLineArgs(),
       env=service.env,
-      options={
-        poUsePath,
-        poStdErrToStdOut
-      }
+      options=options
     )
   except OSError as exc:
     if exc.errorCode == ENOENT:
