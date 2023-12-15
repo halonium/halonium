@@ -272,6 +272,7 @@ template unwrap(node: JsonNode): untyped =
 proc toElement*(node: JsonNode, session: Session): Element =
   for key, value in node.pairs():
     return Element(id: value.getStr(), session: session)
+  raise newException(NoSuchElementException, "No such element")
 
 proc getDriverUri(kind: BrowserKind, url: string): Uri =
   case kind

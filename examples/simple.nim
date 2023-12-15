@@ -5,11 +5,11 @@ proc main() =
 
   # hideDriverConsoleWindow and headless give a completely background execution on Windows
   let session = createSession(
-    Chrome, browserOptions=chromeOptions(args=["--headless"]), hideDriverConsoleWindow=true
+    Chrome, browserOptions=chromeOptions(args=[]), hideDriverConsoleWindow=true
   )
   session.navigate("https://google.com")
 
-  let searchBar = "input[title=\"Search\"]"
+  let searchBar = "textarea[aria-label=\"Search\"]"
   let element = session.waitForElement(searchBar).get()
 
   element.sendKeys("clowns", Key.Enter)

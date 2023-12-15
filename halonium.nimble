@@ -1,6 +1,6 @@
 # Package
 
-version       = "0.2.6"
+version       = "0.2.7"
 author        = "Joey Yakimowich-Payne"
 description   = "A browser automation library written in Nim"
 license       = "MIT"
@@ -14,6 +14,6 @@ bin           = @["halonium"]
 
 requires "nim >= 1.0.6"
 requires "tempfile >= 0.1.7"
-requires "uuids >= 0.1.10"
+requires "https://github.com/pragmagic/uuids#head"
 requires "zip >= 0.3.1"
 requires "fusion >= 1.0.0"

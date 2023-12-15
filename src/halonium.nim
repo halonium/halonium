@@ -1,9 +1,9 @@
 {.passL: "-lz".}
 
-import haloniumpkg/exceptions
-import haloniumpkg/webdriver
-import haloniumpkg/browser
-import haloniumpkg/driveroptions
+import halonium/exceptions
+import halonium/webdriver
+import halonium/browser
+import halonium/driveroptions
 
 export exceptions
 export webdriver
