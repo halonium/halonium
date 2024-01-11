@@ -39,7 +39,5 @@ jobs:
         run: nim -v
       - name: Print Nimble version
         run: nimble -v
-      - name: Nimble build
-        run: nimble build -Y
       - name: Run install test
         run: nimble install -Y
