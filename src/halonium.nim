@@ -1,5 +1,3 @@
-{.passL: "-lz".}
-
 import halonium/exceptions
 import halonium/webdriver
 import halonium/browser
