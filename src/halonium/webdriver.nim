@@ -4,7 +4,7 @@ import os, httpclient, uri, json, options, strutils, sequtils, base64, strformat
 import base64, sets
 import unicode except strip
 
-import zip / zipfiles
+import zippy/ziparchives
 import uuids, tempfile
 import exceptions, service, errorhandler, commands, utils, browser
 
@@ -1689,11 +1689,9 @@ proc submit*(element: Element) =
 proc uploadFile*(element: Element, filename: string) =
   let zfile = mktempUnsafe()
   defer: zfile.removeFile
-
-  var z: ZipArchive
-  discard z.open(zfile, fmWrite)
-  z.addFile(filename.extractFilename, filename)
-  z.close()
+  let archive = ZipArchive()
+  archive.addFile(filename)
+  archive.writeZipArchive(zfile)
 
   let bytes = base64.encode(zfile.readFile())
 
