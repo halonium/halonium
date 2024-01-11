@@ -36,19 +36,19 @@ type
 proc getDriverExe(kind: BrowserKind): string =
   case kind
   of Firefox:
-    "geckodriver"
+    findExe("geckodriver")
   of Chrome, Chromium:
-    "chromedriver"
+    findExe("chromedriver")
   of Edge:
-    "MicrosoftWebDriver.exe"
+    findExe("msedgedriver")
   of InternetExplorer:
-    "IEDriverServer.exe"
+    findExe("IEDriverServer.exe")
   of Opera:
-    "operadriver"
+    findExe("operadriver")
   of Safari:
     "/usr/bin/safaridriver"
   of PhantomJs:
-    "phantomjs"
+    findExe("phantomjs")
   of WebkitGTK:
     "WebKitWebDriver"
   of WPEWebkit:
@@ -58,6 +58,11 @@ proc getDriverExe(kind: BrowserKind): string =
       NoSuchServiceExecutableException,
       "There is no service executable for Android. Please use a remote webdriver instead."
     )
+  if result.len == 0:
+    raise newWebdriverException(
+        NoSuchServiceExecutableException,
+        "There is no service executable for $1" % [$kind]
+      )
 
 # TODO: Make this use Options or something
 proc desiredCapabilities*(kind: BrowserKind): JsonNode =
