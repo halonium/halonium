@@ -61,12 +61,10 @@ const DEBUG_MOUSE_MOVE_SCRIPT* = """
 """
 
 proc freePort*(): int =
-  ## Gets an open port on localhost
-  var socket = newSocket(AF_INET, SOCK_STREAM, IPPROTO_TCP)
-  socket.bindAddr()
-  socket.listen(5)
-  result = socket.getLocalAddr()[1].int
-  socket.close()
+  ## Gets an open port on 127.0.0.1
+  let address = getaddrinfo("127.0.0.1", 0.Port)
+  defer: freeAddrInfo(address)
+  result = cast[Sockaddr_in](address.ai_addr).sin_port.int
 
 proc createConnection*(address: tuple[host: string, port: int], timeout=1000): Socket =
   let info = getAddrInfo(address.host, address.port.Port)
