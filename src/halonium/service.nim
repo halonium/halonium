@@ -34,7 +34,7 @@ type
     hideDriverConsoleWindow: bool
 
 proc getDriverExe(kind: BrowserKind): string =
-  case kind
+  result = case kind
   of Firefox:
     findExe("geckodriver")
   of Chrome, Chromium:
