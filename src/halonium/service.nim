@@ -160,7 +160,7 @@ proc newService*(
     hideDriverConsoleWindow: hideDriverConsoleWindow
   )
 
-  if kind in {InternetExplorer, Firefox}:
+  if kind in {InternetExplorer, Firefox, Chromium, Chrome}:
     result.logLevel = logLevel
 
 proc commandLineArgs(service: Service): seq[string] =
