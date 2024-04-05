@@ -673,6 +673,12 @@ proc close*(session: Session) =
   ## Closes the current session
   discard session.execute(Command.Quit, stopOnException=false)
 
+proc running*(session: Session): bool =
+  result = case session.kind
+  of LocalSession: session.service.running
+  of RemoteSession:
+    true
+
 proc stop*(session: Session) =
   session.close()
   case session.kind
