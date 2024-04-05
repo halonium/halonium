@@ -365,3 +365,5 @@ proc start*(service: Service) =
     if count >= SERVICE_RETRY_LIMIT:
       raise newWebDriverException(fmt"Cannot connect to service {service.path}. \l{service.process.outputStream.readAll}")
   spawn service.watchOutput()
+
+proc running*(service: Service): bool = service.process.running
