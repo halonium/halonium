@@ -236,7 +236,7 @@ proc url*(service: Service): string =
     fmt"http://{joinHostPort(service.host, service.port)}"
 
 proc isConnectable(service: Service): bool =
-  result = utils.isConnectable(service.port)
+  result = utils.isConnectable(service.port, service.host)
 
 proc sendRemoteShutdown(service: Service) =
   try:
