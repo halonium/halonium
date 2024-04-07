@@ -676,8 +676,7 @@ proc close*(session: Session) =
 proc running*(session: Session): bool =
   result = case session.kind
   of LocalSession: session.service.running
-  of RemoteSession:
-    true
+  of RemoteSession: session.service.isConnectable()
 
 proc stop*(session: Session) =
   session.close()
